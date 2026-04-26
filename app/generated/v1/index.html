@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GMD to TXT Converter — Turbo Edition</title>
+    <!-- Google Fonts: buat judul yang kece, bukan Arial yang membosankan -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons: karena font awesome terlalu mainstream (padahal sama aja) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        /* ============================= */
+        /* CSS Variables — karena programmer sejati tidak hardcode warna */
+        /* (kecuali saat deadline 5 menit) */
+        /* ============================= */
+        :root {
+            --bg: #0a0a0f;
+            --bg-elevated: #12121a;
+            --bg-card: #1a1a26;
+            --bg-input: #222233;
+            --fg: #e8e8f0;
+            --fg-muted: #8888a0;
+            --fg-dim: #55556a;
+            --accent: #ff6b35;
+            --accent-glow: rgba(255, 107, 53, 0.3);
+            --accent-secondary: #00e5a0;
+            --accent-secondary-glow: rgba(0, 229, 160, 0.2);
+            --danger: #ff4466;
+            --warning: #ffaa22;
+            --border: #2a2a3e;
+            --border-hover: #3a3a55;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-lg: 16px;
+            --shadow: 0 8px 32px rgba(0,0,0,0.4);
+            --shadow-lg: 0 16px 64px rgba(0,0,0,0.6);
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ============================= */
+        /* Reset — membersihkan dosa-dosa browser default */
+        /* ============================= */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: 'Space Grotesk', system-ui, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ============================= */
+        /* Background animasi — supaya tidak terlihat seperti aplikasi bank */
+        /* ============================= */
+        .bg-scene {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bg-scene .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            animation: orbFloat 20s ease-in-out infinite;
+        }
+
+        .bg-scene .orb:nth-child(1) {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(255,107,53,0.12), transparent 70%);
+            top: -10%; left: -5%;
+            animation-delay: 0s;
+        }
+
+        .bg-scene .orb:nth-child(2) {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(0,229,160,0.08), transparent 70%);
+            bottom: -10%; right: -5%;
+            animation-delay: -7s;
+            animation-duration: 25s;
+        }
+
+        .bg-scene .orb:nth-child(3) {
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(255,68,102,0.06), transparent 70%);
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: -14s;
+            animation-duration: 30s;
+        }
+
+        /* Grid pattern overlay — karena dots terlalu 2021 */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(30px, -40px) scale(1.05); }
+            50% { transform: translate(-20px, 20px) scale(0.95); }
+            75% { transform: translate(40px, 30px) scale(1.02); }
+        }
+
+        /* ============================= */
+        /* Layout utama — flexbox, bukan table layout tahun 2005 */
+        /* ============================= */
+        .app-wrapper {
+            position: relative;
+            z-index: 1;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        /* ============================= */
+        /* Header — tempat menunjukkan identitas (dan ego) */
+        /* ============================= */
+        header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-top: 1rem;
+        }
+
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), #ff8855);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            box-shadow: 0 4px 20px var(--accent-glow);
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes logoPulse {
+            0%, 100% { box-shadow: 0 4px 20px var(--accent-glow); }
+            50% { box-shadow: 0 4px 35px rgba(255,107,53,0.45); }
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, var(--fg) 40%, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header .subtitle {
+            color: var(--fg-muted);
+            font-size: 0.92rem;
+            font-weight: 400;
+        }
+
+        /* ============================= */
+        /* Cards — pembungkus segala sesuatu yang penting */
+        /* ============================= */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem;
+            margin-bottom: 1.25rem;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            color: var(--fg);
+        }
+
+        .card-title i {
+            width: 20px;
+            height: 20px;
+            color: var(--accent);
+        }
+
+        /* ============================= */
+        /* Drop Zone — area paling interaktif di halaman ini */
+        /* (setelah tombol convert tentunya) */
+        /* ============================= */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 2.5rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--accent-glow), transparent);
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(255,107,53,0.03);
+        }
+
+        .drop-zone:hover::before,
+        .drop-zone.dragover::before {
+            opacity: 1;
+        }
+
+        .drop-zone-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .drop-zone .drop-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            border-radius: 50%;
+            background: var(--bg-input);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--fg-muted);
+            transition: all var(--transition);
+        }
+
+        .drop-zone:hover .drop-icon,
+        .drop-zone.dragover .drop-icon {
+            color: var(--accent);
+            background: rgba(255,107,53,0.1);
+            transform: scale(1.08);
+        }
+
+        .drop-zone .drop-text {
+            font-size: 0.95rem;
+            color: var(--fg-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone .drop-text strong {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .drop-zone .drop-hint {
+            font-size: 0.8rem;
+            color: var(--fg-dim);
+        }
+
+        #fileInput {
+            display: none; /* Tersembunyi seperti rahasia keluarga */
+        }
+
+        /* ============================= */
+        /* File Info — muncul setelah file dipilih */
+        /* (keajaiban JavaScript) */
+        /* ============================= */
+        .file-info {
+            display: none;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            margin-top: 1rem;
+            border: 1px solid var(--border);
+            animation: slideUp 0.3s ease;
+        }
+
+        .file-info.visible {
+            display: flex;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .file-info .fi-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, rgba(255,107,53,0.15), rgba(255,107,53,0.05));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .file-info .fi-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-info .fi-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--fg);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-info .fi-meta {
+            font-size: 0.78rem;
+            color: var(--fg-muted);
+            margin-top: 2px;
+        }
+
+        .file-info .fi-remove {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--fg-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+
+        .file-info .fi-remove:hover {
+            background: rgba(255,68,102,0.1);
+            color: var(--danger);
+        }
+
+        /* ============================= */
+        /* Options Panel — tempat user merasa punya kendali */
+        /* ============================= */
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .options-grid { grid-template-columns: 1fr; }
+        }
+
+        .option-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--fg-muted);
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .option-group select,
+        .option-group input[type="text"] {
+            width: 100%;
+            padding: 0.6rem 0.85rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--fg);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.88rem;
+            transition: border-color var(--transition);
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .option-group select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238888a0' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 6l3.5 4 3.5-4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2.5rem;
+            cursor: pointer;
+        }
+
+        .option-group select:focus,
+        .option-group input[type="text"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        /* Checkbox khusus — bukan checkbox default yang jelek */
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            display: none;
+        }
+
+        .checkbox-row .check-box {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+
+        .checkbox-row .check-box svg {
+            width: 12px;
+            height: 12px;
+            color: #fff;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-row input:checked + .check-box {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .checkbox-row input:checked + .check-box svg {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .checkbox-row .check-label {
+            font-size: 0.88rem;
+            color: var(--fg);
+        }
+
+        /* ============================= */
+        /* Convert Button — bintang utama pertunjukan */
+        /* ============================= */
+        .convert-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition);
+            outline: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:focus-visible {
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .btn i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #ff8855);
+            color: #fff;
+            box-shadow: 0 4px 16px var(--accent-glow);
+            flex: 1;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(255,107,53,0.4);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Ripple effect — karena tombol tanpa ripple itu hambar */
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,255,255,0.25) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .btn-primary:active::after {
+            opacity: 1;
+            transition: opacity 0s;
+        }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            color: var(--fg);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+            border-color: var(--border-hover);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--fg-muted);
+            padding: 0.5rem 0.75rem;
+        }
+
+        .btn-ghost:hover {
+            color: var(--fg);
+            background: rgba(255,255,255,0.05);
+        }
+
+        /* ============================= */
+        /* Preview Panel — jendela melihat hasil sebelum download */
+        /* ============================= */
+        .preview-panel {
+            display: none;
+            animation: slideUp 0.35s ease;
+        }
+
+        .preview-panel.visible {
+            display: block;
+        }
+
+        .preview-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .preview-stats {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            font-size: 0.78rem;
+            color: var(--fg-muted);
+        }
+
+        .stat-item strong {
+            color: var(--fg);
+            font-weight: 600;
+        }
+
+        .preview-actions {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .preview-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1.25rem;
+            max-height: 320px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.7;
+            color: var(--fg-muted);
+            white-space: pre-wrap;
+            word-break: break-all;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .preview-box::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .preview-box::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .preview-box::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .preview-empty {
+            text-align: center;
+            color: var(--fg-dim);
+            padding: 2rem;
+            font-size: 0.88rem;
+        }
+
+        /* ============================= */
+        /* History Panel — karena lupa itu manusiawi */
+        /* ============================= */
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 240px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 0.85rem;
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            animation: slideUp 0.25s ease;
+        }
+
+        .history-item .hi-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0,229,160,0.1);
+            color: var(--accent-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .history-item .hi-badge i {
+            width: 14px;
+            height: 14px;
+        }
+
+        .history-item .hi-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .history-item .hi-name {
+            font-size: 0.84rem;
+            font-weight: 500;
+            color: var(--fg);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-item .hi-time {
+            font-size: 0.72rem;
+            color: var(--fg-dim);
+        }
+
+        .history-empty {
+            text-align: center;
+            color: var(--fg-dim);
+            padding: 2rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .history-clear {
+            margin-top: 0.75rem;
+            width: 100%;
+        }
+
+        /* ============================= */
+        /* Toast Notification — pengganti alert() yang menyebalkan */
+        /* ============================= */
+        .toast-container {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.75rem 1.1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg);
+            font-size: 0.85rem;
+            color: var(--fg);
+            animation: toastIn 0.35s ease;
+            max-width: 360px;
+        }
+
+        .toast.toast-out {
+            animation: toastOut 0.3s ease forwards;
+        }
+
+        .toast-success { border-left: 3px solid var(--accent-secondary); }
+        .toast-error { border-left: 3px solid var(--danger); }
+        .toast-info { border-left: 3px solid var(--accent); }
+
+        .toast i {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .toast-success i { color: var(--accent-secondary); }
+        .toast-error i { color: var(--danger); }
+        .toast-info i { color: var(--accent); }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(40px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(40px); }
+        }
+
+        /* ============================= */
+        /* Loading Spinner — animasi untuk membuat user merasa ada yang terjadi */
+        /* (padahal cuma baca file teks biasa) */
+        /* ============================= */
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============================= */
+        /* Batch mode indicators */
+        /* ============================= */
+        .batch-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            background: rgba(0,229,160,0.1);
+            color: var(--accent-secondary);
+            font-size: 0.72rem;
+            font-weight: 600;
+            border-radius: 999px;
+            margin-left: 0.5rem;
+        }
+
+        /* ============================= */
+        /* Footer — tempat meletakkan kredit yang tidak ada yang baca */
+        /* ============================= */
+        footer {
+            text-align: center;
+            padding: 2rem 0 1rem;
+            font-size: 0.78rem;
+            color: var(--fg-dim);
+        }
+
+        footer a {
+            color: var(--fg-muted);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+
+        footer a:hover {
+            color: var(--accent);
+        }
+
+        /* ============================= */
+        /* Responsive — supaya tidak pecah di HP user */
+        /* ============================= */
+        @media (max-width: 600px) {
+            .app-wrapper { padding: 1rem 1rem 3rem; }
+            header h1 { font-size: 1.4rem; }
+            .card { padding: 1.25rem; }
+            .drop-zone { padding: 2rem 1rem; }
+            .preview-toolbar { flex-direction: column; align-items: flex-start; }
+            .convert-row { flex-direction: column; }
+        }
+
+        /* ============================= */
+        /* Reduced motion — untuk user yang pusing lihat animasi */
+        /* ============================= */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background scene: orb-orb ini tidak punya tujuan hidup selain terlihat cantik -->
+    <div class="bg-scene">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+    <div class="bg-grid"></div>
+
+    <!-- Toast container: tempat tinggal sementara notifikasi sebelum dihancurkan -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="app-wrapper">
+        <!-- Header: satu-satunya bagian yang harus terlihat profesional -->
+        <header>
+            <div class="logo-row">
+                <div class="logo-icon" aria-hidden="true">G</div>
+                <h1>GMD to TXT Converter</h1>
+            </div>
+            <p class="subtitle">Ekstrak data mentah dari file Geometry Dash level dengan mudah dan cepat.</p>
+        </header>
+
+        <main>
+            <!-- ================================ -->
+            <!-- Card 1: Upload Area -->
+            <!-- Area paling genteng di seluruh halaman -->
+            <!-- ================================ -->
+            <section class="card">
+                <div class="card-title">
+                    <i data-lucide="upload"></i>
+                    <span>Upload File</span>
+                    <!-- Tidak ada badge "PRO" di sini, semuanya gratis (untuk sekarang) -->
+                </div>
+
+                <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Klik atau seret file GMD ke sini">
+                    <div class="drop-zone-content">
+                        <div class="drop-icon">
+                            <i data-lucide="file-up" style="width:24px;height:24px;"></i>
+                        </div>
+                        <p class="drop-text">
+                            Seret file <strong>.gmd</strong> ke sini, atau <strong>klik untuk memilih</strong>
+                        </p>
+                        <p class="drop-hint">Mendukung satu file atau banyak file sekaligus (batch mode)</p>
+                    </div>
+                </div>
+
+                <input type="file" id="fileInput" accept=".gmd" multiple>
+
+                <!-- File info: muncul dengan ajaib setelah user memilih file -->
+                <div class="file-info" id="fileInfo">
+                    <div class="fi-icon">
+                        <i data-lucide="file-text" style="width:20px;height:20px;"></i>
+                    </div>
+                    <div class="fi-details">
+                        <div class="fi-name" id="fileName">—</div>
+                        <div class="fi-meta" id="fileMeta">—</div>
+                    </div>
+                    <button class="fi-remove" id="fileRemove" aria-label="Hapus file" title="Hapus file">
+                        <i data-lucide="x" style="width:16px;height:16px;"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- ================================ -->
+            <!-- Card 2: Extraction Options -->
+            <!-- Di sini user bisa merasa seperti seorang ilmuwan data -->
+            <!-- (padahal cuma ganti regex) -->
+            <!-- ================================ -->
+            <section class="card">
+                <div class="card-title">
+                    <i data-lucide="settings-2"></i>
+                    <span>Opsi Ekstraksi</span>
+                </div>
+
+                <div class="options-grid">
+                    <div class="option-group">
+                        <label for="keySelect">Target Key</label>
+                        <select id="keySelect">
+                            <option value="k4">k4 — Object Data (Level)</option>
+                            <option value="k8">k8 — Song ID</option>
+                            <option value="k13">k13 — Background Color</option>
+                            <option value="k17">k17 — Level Name</option>
+                            <option value="k21">k21 — Level Length</option>
+                            <option value="k28">k28 — Difficulty</option>
+                            <option value="k35">k35 — Custom Song</option>
+                            <option value="k43">k43 — Progress Bar</option>
+                            <option value="k45">k45 — Level Data (alt)</option>
+                            <option value="custom">Custom Key...</option>
+                        </select>
+                    </div>
+
+                    <div class="option-group" id="customKeyGroup" style="display:none;">
+                        <label for="customKeyInput">Custom Key Name</label>
+                        <input type="text" id="customKeyInput" placeholder="Contoh: k50">
+                    </div>
+
+                    <div class="option-group" style="grid-column: 1 / -1;">
+                        <label>&nbsp;</label>
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="trimWhitespace">
+                            <span class="check-box">
+                                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5 6 5 8.5 9.5 3.5"/></svg>
+                            </span>
+                            <span class="check-label">Trim whitespace berlebih di awal dan akhir hasil</span>
+                        </label>
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="addMetadata" checked>
+                            <span class="check-box">
+                                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5 6 5 8.5 9.5 3.5"/></svg>
+                            </span>
+                            <span class="check-label">Tambahkan metadata di awal file (nama file, tanggal, key)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="convert-row">
+                    <button class="btn btn-primary" id="convertBtn" disabled>
+                        <i data-lucide="zap"></i>
+                        <span id="convertBtnText">Ekstrak ke .txt</span>
+                    </button>
+                    <button class="btn btn-secondary" id="resetBtn" title="Reset semua">
+                        <i data-lucide="rotate-ccw"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- ================================ -->
+            <!-- Card 3: Preview -->
+            <!-- Supaya user tidak perlu download dulu untuk nyesel -->
+            <!-- ================================ -->
+            <section class="card preview-panel" id="previewPanel">
+                <div class="card-title">
+                    <i data-lucide="eye"></i>
+                    <span>Preview Hasil</span>
+                </div>
+
+                <div class="preview-toolbar">
+                    <div class="preview-stats">
+                        <span class="stat-item">Karakter: <strong id="statChars">0</strong></span>
+                        <span class="stat-item">Baris: <strong id="statLines">0</strong></span>
+                        <span class="stat-item">Ukuran: <strong id="statSize">0 B</strong></span>
+                    </div>
+                    <div class="preview-actions">
+                        <button class="btn btn-ghost" id="copyBtn" title="Salin ke clipboard">
+                            <i data-lucide="clipboard-copy" style="width:16px;height:16px;"></i>
+                            <span>Salin</span>
+                        </button>
+                        <button class="btn btn-ghost" id="downloadBtn" title="Download file">
+                            <i data-lucide="download" style="width:16px;height:16px;"></i>
+                            <span>Download</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="preview-box" id="previewBox">
+                    <div class="preview-empty">Belum ada hasil untuk ditampilkan.</div>
+                </div>
+            </section>
+
+            <!-- ================================ -->
+            <!-- Card 4: History -->
+            <!-- Sejarah adalah guru yang terbaik -->
+            <!-- (tapi dalam kasus ini cuma log file yang sudah dikonversi) -->
+            <!-- ================================ -->
+            <section class="card" id="historyCard" style="display:none;">
+                <div class="card-title">
+                    <i data-lucide="history"></i>
+                    <span>Riwayat Konversi</span>
+                    <span class="batch-badge" id="historyCount">0</span>
+                </div>
+
+                <div class="history-list" id="historyList">
+                    <div class="history-empty">Belum ada konversi yang dilakukan.</div>
+                </div>
+
+                <button class="btn btn-ghost history-clear" id="clearHistoryBtn">
+                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                    <span>Hapus Semua Riwayat</span>
+                </button>
+            </section>
+        </main>
+
+        <!-- Footer: dibaca oleh tidak ada satu orang pun -->
+        <footer>
+            Dibuat dengan <span style="color:var(--danger);">&hearts;</span> dan regex yang hampir tidak berfungsi.
+            <br>Tidak terkait dengan RobTop Games. Jangan sue saya.
+        </footer>
+    </div>
+
+    <script>
+        /* =========================================================
+         *  GMD to TXT Converter — Turbo Edition
+         *  Dibuat oleh: seseorang yang terlalu sering main Geometry Dash
+         *  
+         *  Catatan penting untuk kontributor masa depan:
+         *  - Jangan sentuh regex-nya kalau tidak paham
+         *  - Ya, saya tahu kode ini bisa lebih singkat
+         *  - Tapi kapan-kapan bukan hari ini
+         * ========================================================= */
+
+        // =========================
+        // Inisialisasi Lucide icons
+        // (kalau lupa ini, semua icon jadi kotak kosong yang menyedihkan)
+        // =========================
+        lucide.createIcons();
+
+        // =========================
+        // State management sederhana
+        // (bukan Redux, tapi cukup untuk aplikasi yang cuma baca file teks)
+        // =========================
+        const state = {
+            files: [],           // File yang dipilih user
+            extractedText: '',   // Hasil ekstraksi terakhir
+            history: JSON.parse(localStorage.getItem('gmd_history') || '[]'), // Riwayat, disimpan selama browser tidak marah
+            isProcessing: false  // Flag biar user tidak spam klik seperti orang gila
+        };
+
+        // =========================
+        // Referensi DOM elements
+        // (querySelector sebanyak ini seharusnya tidak legal)
+        // =========================
+        const dom = {
+            dropZone: document.getElementById('dropZone'),
+            fileInput: document.getElementById('fileInput'),
+            fileInfo: document.getElementById('fileInfo'),
+            fileName: document.getElementById('fileName'),
+            fileMeta: document.getElementById('fileMeta'),
+            fileRemove: document.getElementById('fileRemove'),
+            keySelect: document.getElementById('keySelect'),
+            customKeyGroup: document.getElementById('customKeyGroup'),
+            customKeyInput: document.getElementById('customKeyInput'),
+            trimWhitespace: document.getElementById('trimWhitespace'),
+            addMetadata: document.getElementById('addMetadata'),
+            convertBtn: document.getElementById('convertBtn'),
+            convertBtnText: document.getElementById('convertBtnText'),
+            resetBtn: document.getElementById('resetBtn'),
+            previewPanel: document.getElementById('previewPanel'),
+            previewBox: document.getElementById('previewBox'),
+            statChars: document.getElementById('statChars'),
+            statLines: document.getElementById('statLines'),
+            statSize: document.getElementById('statSize'),
+            copyBtn: document.getElementById('copyBtn'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            historyCard: document.getElementById('historyCard'),
+            historyList: document.getElementById('historyList'),
+            historyCount: document.getElementById('historyCount'),
+            clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+            toastContainer: document.getElementById('toastContainer')
+        };
+
+        // =========================
+        // Utility functions
+        // (fungsi-fungsi kecil yang tidak punya teman)
+        // =========================
+
+        /** Format ukuran file agar terlihat profesional */
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        }
+
+        /** Waktu relatif: "2 menit yang lalu" dst */
+        function timeAgo(date) {
+            const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+            if (seconds < 60) return 'Baru saja';
+            if (seconds < 3600) return Math.floor(seconds / 60) + ' menit lalu';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + ' jam lalu';
+            return Math.floor(seconds / 86400) + ' hari lalu';
+        }
+
+        /** Escape HTML — supaya user tidak inject XSS di preview kita */
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // =========================
+        // Toast notification system
+        // (lebih baik daripada alert() yang bikin user trauma)
+        // =========================
+        function showToast(message, type = 'info') {
+            const iconMap = {
+                success: 'check-circle',
+                error: 'alert-circle',
+                info: 'info'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i data-lucide="${iconMap[type]}"></i>
+                <span>${escapeHTML(message)}</span>
+            `;
+
+            dom.toastContainer.appendChild(toast);
+            lucide.createIcons({ nodes: [toast] }); // Render icon di toast
+
+            // Toast ini punya masa hidup 3 detik sebelum dibunuh
+            setTimeout(() => {
+                toast.classList.add('toast-out');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 3000);
+        }
+
+        // =========================
+        // File handling
+        // (bagian yang sebenarnya penting, sisanya cuma hiasan)
+        // =========================
+
+        /** Update tampilan info file */
+        function updateFileInfo() {
+            if (state.files.length === 0) {
+                dom.fileInfo.classList.remove('visible');
+                dom.convertBtn.disabled = true;
+                return;
+            }
+
+            dom.fileInfo.classList.add('visible');
+            dom.convertBtn.disabled = false;
+
+            if (state.files.length === 1) {
+                const f = state.files[0];
+                dom.fileName.textContent = f.name;
+                dom.fileMeta.textContent = formatSize(f.size) + ' — ' + new Date(f.lastModified).toLocaleDateString('id-ID');
+            } else {
+                // Mode batch: hitung total ukuran supaya terasa ribet
+                const totalSize = state.files.reduce((sum, f) => sum + f.size, 0);
+                dom.fileName.textContent = state.files.length + ' file dipilih';
+                dom.fileMeta.textContent = 'Total: ' + formatSize(totalSize);
+            }
+        }
+
+        /** Handle file selection */
+        function handleFiles(files) {
+            const gmdFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.gmd'));
+
+            if (gmdFiles.length === 0) {
+                showToast('Hanya file .gmd yang didukung, bukan .mp3 atau .exe.', 'error');
+                return;
+            }
+
+            if (gmdFiles.length < files.length) {
+                const skipped = files.length - gmdFiles.length;
+                showToast(`${skipped} file bukan .gmd dan diabaikan.`, 'info');
+            }
+
+            state.files = gmdFiles;
+            updateFileInfo();
+            showToast(`${gmdFiles.length} file berhasil dimuat.`, 'success');
+        }
+
+        // Drop zone events — ini lebih banyak event listener daripada teman saya
+        dom.dropZone.addEventListener('click', () => dom.fileInput.click());
+
+        dom.dropZone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                dom.fileInput.click();
+            }
+        });
+
+        dom.dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dom.dropZone.classList.add('dragover');
+        });
+
+        dom.dropZone.addEventListener('dragleave', () => {
+            dom.dropZone.classList.remove('dragover');
+        });
+
+        dom.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dom.dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        dom.fileInput.addEventListener('change', () => {
+            if (dom.fileInput.files.length > 0) {
+                handleFiles(dom.fileInput.files);
+            }
+        });
+
+        dom.fileRemove.addEventListener('click', () => {
+            state.files = [];
+            dom.fileInput.value = ''; // Bersihkan input, ini penting!
+            updateFileInfo();
+            // Sembunyikan preview juga
+            dom.previewPanel.classList.remove('visible');
+            state.extractedText = '';
+        });
+
+        // =========================
+        // Option: custom key toggle
+        // (karena user selalu ingin hal yang tidak ada di daftar)
+        // =========================
+        dom.keySelect.addEventListener('change', () => {
+            const isCustom = dom.keySelect.value === 'custom';
+            dom.customKeyGroup.style.display = isCustom ? 'block' : 'none';
+            if (isCustom) {
+                dom.customKeyInput.focus(); // Langsung fokus, user kita malas klik
+            }
+        });
+
+        // =========================
+        // Core: Ekstraksi GMD
+        // (bagian yang membuat aplikasi ini "bekerja")
+        // (regex ini sudah melalui meditasi 3 hari)
+        // =========================
+
+        function getTargetKey() {
+            if (dom.keySelect.value === 'custom') {
+                const custom = dom.customKeyInput.value.trim();
+                if (!custom) {
+                    showToast('Masukkan nama key custom dulu.', 'error');
+                    return null;
+                }
+                return custom;
+            }
+            return dom.keySelect.value;
+        }
+
+        function extractFromGMD(content, keyName) {
+            // Regex yang menangkap isi antara <k>keyName</k><s> dan </s>
+            // .*? itu artinya "ambil sesedikit mungkin" — seperti diet tapi untuk string
+            const escapedKey = keyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`<k>${escapedKey}<\\/k>\\s*<s>(.*?)<\\/s>`, 's');
+            const match = content.match(regex);
+
+            if (match && match[1] !== undefined) {
+                let result = match[1];
+                if (dom.trimWhitespace.checked) {
+                    result = result.trim();
+                }
+                return result;
+            }
+            return null;
+        }
+
+        function buildOutput(filename, keyName, extractedText) {
+            if (dom.addMetadata.checked) {
+                const now = new Date();
+                const timestamp = now.toLocaleString('id-ID');
+                const divider = '─'.repeat(40);
+                return `${divider}\n  GMD Extracted Data\n${divider}\nFile sumber : ${filename}\nKey target  : ${keyName}\nTanggal     : ${timestamp}\n${divider}\n\n${extractedText}`;
+            }
+            return extractedText;
+        }
+
+        /** Proses satu file, return Promise */
+        function processFile(file, keyName) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = extractFromGMD(e.target.result, keyName);
+                    resolve({ file, result });
+                };
+                reader.onerror = () => reject(new Error(`Gagal membaca ${file.name}`));
+                reader.readAsText(file);
+            });
+        }
+
+        /** Download teks sebagai file */
+        function downloadText(text, filename) {
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            // Bersihkan memori seperti orang baik
+        }
+
+        /** Update panel preview */
+        function updatePreview(text) {
+            dom.previewPanel.classList.add('visible');
+
+            // Hitung statistik yang membuat kita terlihat profesional
+            const chars = text.length;
+            const lines = text.split('\n').length;
+            const size = new Blob([text]).size;
+
+            dom.statChars.textContent = chars.toLocaleString('id-ID');
+            dom.statLines.textContent = lines.toLocaleString('id-ID');
+            dom.statSize.textContent = formatSize(size);
+
+            // Tampilkan preview, batas 50.000 karakter agar browser tidak menangis
+            const displayText = text.length > 50000
+                ? text.substring(0, 50000) + '\n\n... [ditampilkan 50.000 karakter pertama dari ' + text.length.toLocaleString('id-ID') + ']'
+                : text;
+
+            dom.previewBox.textContent = displayText;
+        }
+
+        // =========================
+        // Tombol Convert — momen yang paling ditunggu-tunggu
+        // =========================
+        dom.convertBtn.addEventListener('click', async () => {
+            if (state.files.length === 0 || state.isProcessing) return;
+
+            const keyName = getTargetKey();
+            if (!keyName) return;
+
+            state.isProcessing = true;
+            dom.convertBtn.disabled = true;
+            dom.convertBtnText.textContent = 'Memproses...';
+            // Tampilkan spinner untuk efek dramatis
+            const spinnerEl = document.createElement('div');
+            spinnerEl.className = 'spinner';
+            dom.convertBtn.prepend(spinnerEl);
+
+            try {
+                if (state.files.length === 1) {
+                    // Mode single file — jalanan biasa
+                    const { file, result } = await processFile(state.files[0], keyName);
+
+                    if (result === null) {
+                        showToast(`Key <${keyName}> tidak ditemukan di file ini.`, 'error');
+                        return;
+                    }
+
+                    const output = buildOutput(file.name, keyName, result);
+                    state.extractedText = output;
+
+                    const outName = file.name.replace(/\.gmd$/i, `_${keyName}.txt`);
+                    downloadText(output, outName);
+                    updatePreview(output);
+                    showToast('Berhasil! File TXT sedang diunduh.', 'success');
+
+                    // Tambahkan ke riwayat
+                    addHistory(file.name, keyName, result.length);
+
+                } else {
+                    // Mode batch — download satu per satu seperti mesin cetak
+                    let successCount = 0;
+                    let failCount = 0;
+                    let combinedText = '';
+
+                    for (const file of state.files) {
+                        const { result } = await processFile(file, keyName);
+                        if (result !== null) {
+                            const output = buildOutput(file.name, keyName, result);
+                            const outName = file.name.replace(/\.gmd$/i, `_${keyName}.txt`);
+                            downloadText(output, outName);
+                            combinedText += `\n${'═'.repeat(50)}\n  ${file.name}\n${'═'.repeat(50)}\n${output}\n`;
+                            successCount++;
+                            addHistory(file.name, keyName, result.length);
+                        } else {
+                            failCount++;
+                        }
+                        // Delay kecil antar download supaya browser tidak panik
+                        await new Promise(r => setTimeout(r, 300));
+                    }
+
+                    if (successCount > 0) {
+                        state.extractedText = combinedText.trim();
+                        updatePreview(combinedText.trim());
+                    }
+
+                    if (failCount === 0) {
+                        showToast(`Semua ${successCount} file berhasil diekstrak!`, 'success');
+                    } else {
+                        showToast(`${successCount} berhasil, ${failCount} gagal (key tidak ditemukan).`, 'info');
+                    }
+                }
+            } catch (err) {
+                showToast('Terjadi kesalahan: ' + err.message, 'error');
+            } finally {
+                // Reset tombol ke keadaan semula
+                state.isProcessing = false;
+                dom.convertBtn.disabled = false;
+                dom.convertBtnText.textContent = state.files.length > 1 ? 'Ekstrak Semua (Batch)' : 'Ekstrak ke .txt';
+                spinnerEl.remove();
+            }
+        });
+
+        // Update teks tombol berdasarkan jumlah file
+        const observer = new MutationObserver(() => {
+            if (state.files.length > 1 && !state.isProcessing) {
+                dom.convertBtnText.textContent = 'Ekstrak Semua (Batch)';
+            } else if (!state.isProcessing) {
+                dom.convertBtnText.textContent = 'Ekstrak ke .txt';
+            }
+        });
+        observer.observe(dom.fileInfo, { attributes: true, attributeFilter: ['class'] });
+
+        // =========================
+        // Tombol Reset — untuk user yang ingin memulai hidup baru
+        // =========================
+        dom.resetBtn.addEventListener('click', () => {
+            state.files = [];
+            state.extractedText = '';
+            dom.fileInput.value = '';
+            dom.keySelect.value = 'k4';
+            dom.customKeyGroup.style.display = 'none';
+            dom.customKeyInput.value = '';
+            dom.trimWhitespace.checked = false;
+            dom.addMetadata.checked = true;
+            dom.previewPanel.classList.remove('visible');
+            updateFileInfo();
+            showToast('Semua sudah direset. Tabir baru dimulai.', 'info');
+        });
+
+        // =========================
+        // Tombol Copy — untuk user yang malas download
+        // =========================
+        dom.copyBtn.addEventListener('click', async () => {
+            if (!state.extractedText) {
+                showToast('Tidak ada hasil untuk disalin.', 'error');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(state.extractedText);
+                showToast('Hasil berhasil disalin ke clipboard!', 'success');
+                // Ubah tombol sementara biar user yakin
+                const originalHTML = dom.copyBtn.innerHTML;
+                dom.copyBtn.innerHTML = '<i data-lucide="check" style="width:16px;height:16px;"></i><span>Tersalin!</span>';
+                lucide.createIcons({ nodes: [dom.copyBtn] });
+                setTimeout(() => {
+                    dom.copyBtn.innerHTML = originalHTML;
+                    lucide.createIcons({ nodes: [dom.copyBtn] });
+                }, 2000);
+            } catch {
+                // Fallback untuk browser yang tidak mendukung clipboard API
+                // (ya, kita masih peduli dengan Internet Explorer... tidak, tidak juga)
+                const textarea = document.createElement('textarea');
+                textarea.value = state.extractedText;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast('Hasil berhasil disalin!', 'success');
+            }
+        });
+
+        // =========================
+        // Tombol Download ulang — untuk user yang tidak sengaja menutup tab download
+        // =========================
+        dom.downloadBtn.addEventListener('click', () => {
+            if (!state.extractedText) {
+                showToast('Tidak ada hasil untuk diunduh.', 'error');
+                return;
+            }
+            const keyName = dom.keySelect.value === 'custom' ? dom.customKeyInput.value.trim() : dom.keySelect.value;
+            downloadText(state.extractedText, `extracted_${keyName}.txt`);
+            showToast('File diunduh ulang.', 'info');
+        });
+
+        // =========================
+        // History System
+        // Menyimpan riwayat di localStorage
+        // (localStorage bisa dihapus user kapan saja, jadi jangan terlalu bergantung)
+        // =========================
+
+        function addHistory(filename, keyName, charCount) {
+            const entry = {
+                filename,
+                keyName,
+                charCount,
+                timestamp: new Date().toISOString()
+            };
+
+            state.history.unshift(entry);
+
+            // Batasi riwayat maksimal 50, supaya localStorage tidak menangis
+            if (state.history.length > 50) {
+                state.history = state.history.slice(0, 50);
+            }
+
+            localStorage.setItem('gmd_history', JSON.stringify(state.history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            if (state.history.length === 0) {
+                dom.historyCard.style.display = 'none';
+                return;
+            }
+
+            dom.historyCard.style.display = 'block';
+            dom.historyCount.textContent = state.history.length;
+
+            // Render list riwayat
+            dom.historyList.innerHTML = state.history.map((entry, i) => `
+                <div class="history-item" style="animation-delay:${Math.min(i * 0.05, 0.3)}s">
+                    <div class="hi-badge">
+                        <i data-lucide="file-check"></i>
+                    </div>
+                    <div class="hi-info">
+                        <div class="hi-name">${escapeHTML(entry.filename)} &rarr; ${escapeHTML(entry.keyName)}</div>
+                        <div class="hi-time">${timeAgo(entry.timestamp)} &middot; ${entry.charCount.toLocaleString('id-ID')} karakter</div>
+                    </div>
+                </div>
+            `).join('');
+
+            lucide.createIcons({ nodes: [dom.historyList] });
+        }
+
+        dom.clearHistoryBtn.addEventListener('click', () => {
+            state.history = [];
+            localStorage.removeItem('gmd_history');
+            renderHistory();
+            showToast('Riwayat dihapus. Seperti tidak pernah terjadi.', 'info');
+        });
+
+        // Render riwayat awal
+        renderHistory();
+
+        // =========================
+        // Keyboard shortcuts
+        // Karena programmer terlalu malas untuk mengklik
+        // =========================
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+Enter = konversi
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!dom.convertBtn.disabled) dom.convertBtn.click();
+            }
+            // Ctrl+Shift+C = salin hasil
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+                e.preventDefault();
+                if (state.extractedText) dom.copyBtn.click();
+            }
+        });
+
+        // =========================
+        // Ripple effect pada tombol primary
+        // (detail kecil yang membuat perbedaan besar)
+        // =========================
+        dom.convertBtn.addEventListener('mousemove', (e) => {
+            const rect = dom.convertBtn.getBoundingClientRect();
+            dom.convertBtn.style.setProperty('--x', ((e.clientX - rect.left) / rect.width * 100) + '%');
+            dom.convertBtn.style.setProperty('--y', ((e.clientY - rect.top) / rect.height * 100) + '%');
+        });
+
+        // =========================
+        // Inisialisasi
+        // (kode terakhir yang dijalankan, seperti klimaks film)
+        // =========================
+        updateFileInfo();
+
+        // Console easter egg — untuk programmer yang inspect element
+        console.log(
+            '%c📦 GMD to TXT Converter — Turbo Edition',
+            'font-size:16px;font-weight:bold;color:#ff6b35;'
+        );
+        console.log(
+            '%cJika Anda membaca ini, Anda adalah orang yang penasaran. Saya menghargai itu.',
+            'font-size:11px;color:#8888a0;'
+        );
+        console.log(
+            '%cTip: Tekan Ctrl+Enter untuk konversi cepat.',
+            'font-size:11px;color:#00e5a0;'
+        );
+    </script>
+</body>
+</html>
