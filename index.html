@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GMD to TXT Converter</title>
+    <style>
+        /* I Liek Dark Designz */
+        body { 
+            background-color: #1e1e2e; 
+            color: #cdd6f4; 
+            font-family: system-ui, -apple-system, sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .container { 
+            background-color: #313244; 
+            padding: 2rem 3rem; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
+            text-align: center; 
+        }
+        h2 { margin-top: 0; color: #cba6f7; }
+        p { margin-bottom: 1.5rem; font-size: 0.95rem;}
+        input[type="file"] { 
+            margin-bottom: 1.5rem; 
+            background: #45475a;
+            padding: 10px;
+            border-radius: 6px;
+            color: #cdd6f4;
+            border: 1px solid #585b70;
+        }
+        button { 
+            background-color: #89b4fa; 
+            color: #1e1e2e; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: 0.2s;
+        }
+        button:hover { background-color: #74c7ec; }
+        #status { 
+            margin-top: 1rem; 
+            font-size: 0.9rem; 
+            font-weight: bold;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>📦 GMD to TXT Converter</h2>
+        <p>Pilih file .gmd untuk mengekstrak data mentahnya.</p>
+      <p>Select the .gmd file to extract its raw data.</p>
+        
+        <input type="file" id="fileInput" accept=".gmd">
+        <br>
+        <button id="convertBtn">Ekstrak ke .txt</button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+        document.getElementById('convertBtn').addEventListener('click', () => {
+            const fileInput = document.getElementById('fileInput');
+            const statusDiv = document.getElementById('status');
+
+            // Cek apakah user sudah memilih file
+            if (fileInput.files.length === 0) {
+                statusDiv.textContent = 'Pilih file GMD dulu ya!';
+                statusDiv.style.color = '#f38ba8'; // Merah
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            // Berjalan ketika file selesai dibaca oleh browser
+            reader.onload = function(event) {
+                const content = event.target.result;
+                
+                // Gunakan Regex (Regular Expression) untuk mencari isi dari <k>k4</k><s>
+                // Simbol (.*?) berfungsi untuk "menangkap" semua teks di antara tag pembuka dan penutup </s>
+                const regex = /<k>k4<\/k>\s*<s>(.*?)<\/s>/s;
+                const match = content.match(regex);
+
+                if (match && match[1]) {
+                    // match[1] adalah hasil tangkapan teks yang kita inginkan
+                    const extractedText = match[1];
+                    
+                    // Bungkus teks ke dalam Blob (objek file sementara di memori browser)
+                    const blob = new Blob([extractedText], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Bikin elemen link <a> tidak terlihat untuk memicu download otomatis
+                    const a = document.createElement('a');
+                    a.href = url;
+                    // Ubah ekstensi file asli dari .gmd menjadi .txt
+                    a.download = file.name.replace(/\.gmd$/i, '.txt'); 
+                    
+                    // Simulasikan klik pada link
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Bersihkan memori
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    statusDiv.textContent = 'Berhasil! File TXT sedang diunduh.';
+                    statusDiv.style.color = '#a6e3a1'; // Hijau
+                } else {
+                    statusDiv.textContent = 'Error: Tidak menemukan data <k>k4</k> di file ini.';
+                    statusDiv.style.color = '#f38ba8'; // Merah
+                }
+            };
+
+            reader.onerror = function() {
+                statusDiv.textContent = 'Terjadi kesalahan saat membaca file.';
+                statusDiv.style.color = '#f38ba8';
+            };
+
+            // Baca file sebagai teks biasa
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>
