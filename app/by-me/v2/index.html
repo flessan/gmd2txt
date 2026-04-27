@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GMD to TXT Converter</title>
+    <style>
+        /* Gaya Goofy Minimalis */
+        :root { --y: #FFE135; --g: #9ACD32; --b: #5D4037; }
+        
+        body { 
+            background: linear-gradient(180deg, #87CEEB, #B3E5FC); /* Langit Biru */
+            color: var(--b); 
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .container { 
+            background: #FFFDE7; /* Krem Putih */
+            padding: 2rem; 
+            border-radius: 25px; 
+            border: 5px solid var(--b); /* Border Tebal Kartun */
+            box-shadow: 8px 8px 0 var(--b); /* Shadow Kotak Kartun */
+            text-align: center;
+            max-width: 400px;
+        }
+        h2 { margin-top: 0; color: var(--g); text-shadow: 2px 2px 0 var(--y); }
+        p { margin-bottom: 1.5rem; font-size: 0.95rem; }
+        
+        input[type="file"] { 
+            margin-bottom: 1.5rem; 
+            background: #E0F7FA;
+            padding: 10px;
+            border-radius: 10px;
+            color: var(--b);
+            border: 2px dashed var(--b);
+            width: 100%;
+        }
+        button { 
+            background-color: var(--y); 
+            color: var(--b); 
+            border: 3px solid var(--b); 
+            padding: 12px 25px; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            font-weight: bold;
+            font-family: inherit;
+            font-size: 16px;
+            box-shadow: 4px 4px 0 var(--b);
+            transition: 0.1s;
+        }
+        button:hover { background-color: var(--g); transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--b); }
+        button:active { transform: translate(4px, 4px); box-shadow: none; }
+        
+        #status { 
+            margin-top: 1.5rem; 
+            font-size: 0.9rem; 
+            font-weight: bold;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>GMD to TXT Converter</h2>
+        <p>Pilih file .gmd untuk mengekstrak data mentahnya.<br>Select the .gmd file to extract its raw data.</p>
+        
+        <input type="file" id="fileInput" accept=".gmd">
+        <br>
+        <button id="convertBtn">Ekstrak ke .txt</button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+        document.getElementById('convertBtn').addEventListener('click', () => {
+            const fileInput = document.getElementById('fileInput');
+            const statusDiv = document.getElementById('status');
+
+            if (fileInput.files.length === 0) {
+                statusDiv.textContent = 'Pilih file GMD dulu ya!';
+                statusDiv.style.color = '#D32F2F'; // Merah Tua
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                const content = event.target.result;
+                const regex = /<k>k4<\/k>\s*<s>(.*?)<\/s>/s;
+                const match = content.match(regex);
+
+                if (match && match[1]) {
+                    const extractedText = match[1];
+                    const blob = new Blob([extractedText], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.name.replace(/\.gmd$/i, '.txt'); 
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    statusDiv.textContent = 'Berhasil! File TXT sedang diunduh.';
+                    statusDiv.style.color = '#558B2F'; // Hijau Tua
+                } else {
+                    statusDiv.textContent = 'Error: Tidak menemukan data <k>k4</k> di file ini.';
+                    statusDiv.style.color = '#D32F2F'; // Merah Tua
+                }
+            };
+
+            reader.onerror = function() {
+                statusDiv.textContent = 'Terjadi kesalahan saat membaca file.';
+                statusDiv.style.color = '#D32F2F';
+            };
+
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>
