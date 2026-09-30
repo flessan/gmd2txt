@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "GMDPlayer — Geometry Dash workstation",
+  "short_name": "GMDPlayer",
+  "description": "A local-first workstation for Geometry Dash files.",
+  "start_url": "./#/home",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f4f3ee",
+  "theme_color": "#f4f3ee",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "./assets/icons/gmdplayer-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icons/gmdplayer-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,108 +1,32 @@
-<!DOCTYPE html>
-<html lang="id">
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>gmd2txt landing-pages</title>
-<style>
-  /* Variabel warna & Reset dasar */
-  :root { --bg: #87CEEB; --y: #FFE135; --g: #9ACD32; --b: #5D4037; }
-  * { box-sizing: border-box; }
-  
-  body {
-    background: linear-gradient(180deg, #87CEEB, #B3E5FC);
-    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-    color: var(--b);
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 20px;
-    text-align: center; /* Pusatkan semua konten */
-  }
-
-  /* Gaya Umum Elemen */
-  img { width: 100%; border-radius: 20px; border: 5px solid var(--b); margin-bottom: 20px; }
-  hr { border: 2px dashed var(--b); margin: 20px 0; }
-  
-  /* Teks & Tombol Utama */
-  h1 { font-size: 24px; background: var(--y); display: inline-block; padding: 10px 20px; border-radius: 15px; border: 4px solid var(--b); }
-  h1 a { color: #2E7D32; text-decoration: underline; }
-  
-  .btn-main {
-    display: block;
-    background: var(--y);
-    color: var(--b);
-    font-weight: bold;
-    font-size: 18px;
-    text-decoration: none;
-    padding: 15px;
-    margin: 20px auto;
-    max-width: 300px;
-    border-radius: 50px;
-    border: 4px solid var(--b);
-    box-shadow: 4px 4px 0 var(--b); /* Efek kartun */
-    transition: 0.1s;
-  }
-  .btn-main:hover { background: var(--g); transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--b); }
-
-  /* Accordion (Dropdown) */
-  .hd {
-    background: var(--g);
-    padding: 12px;
-    border: 3px solid var(--b);
-    border-radius: 10px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-top: 10px;
-    text-align: left;
-  }
-  .hd:hover { background: var(--y); }
-  .arr { display: inline-block; width: 20px; transition: 0.2s; }
-  .open .arr { transform: rotate(90deg); }
-  
-  .sub {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.2s;
-    background: #FFFDE7;
-    border: 3px solid var(--b);
-    border-top: none;
-    border-radius: 0 0 10px 10px;
-  }
-  .open+.sub { max-height: 200px; }
-  
-  .sub a {
-    display: block;
-    color: var(--b);
-    text-decoration: none;
-    padding: 10px;
-    border-bottom: 1px dashed var(--b);
-  }
-  .sub a:last-child { border-bottom: none; }
-  .sub a:hover { background: var(--y); }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f3ee">
+  <meta name="application-name" content="GMDPlayer">
+  <meta name="description" content="A local-first workstation for Geometry Dash files.">
+  <meta name="color-scheme" content="light">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/gmdplayer-192.png">
+  <link rel="apple-touch-icon" href="./assets/icons/gmdplayer-192.png">
+  <title>GMDPlayer — Geometry Dash workstation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/gmdplayer.css">
+  <script src="./app-meta.js"></script>
+  <script src="./play/assets/scripts/libs/pako.min.js"></script>
+  <script type="module" src="./shell/main.js"></script>
 </head>
 <body>
-
-  <img src="https://www.image2url.com/r2/default/images/1777219453031-6cb72cf1-3dfc-4f9c-8337-a16ec10dba99.png" alt="Uploaded image">
-
-  <h1>GMD2TXT - A-Local <a href="https://github.com/HJfod/gdshare">GDShare</a> Converter Right on Your Browser!</h1>
-
-  <a href="https://gmd2txt.pages.dev/by-me/v3/" class="btn-main">QuickConvert [Click Me]</a>
-
-  <div class="hd" onclick="this.classList.toggle('open')"><span class="arr">▶</span> Advanced: By Me (Flessan)</div>
-  <div class="sub">
-    <a href="./by-me/v1/">Version 1</a>
-    <a href="./by-me/v2/">Version 2</a>
-    <a href="./by-me/v3/">Version 3</a>
-  </div>
-
-  <div class="hd" onclick="this.classList.toggle('open')"><span class="arr">▶</span> Advanced: From Generated AI</div>
-  <div class="sub">
-    <a href="./generated/v1/">Version 1</a>
-    <a href="#">Version 2 (No Way)</a>
-  </div>
-
-  <hr>
-
+  <div id="app"></div>
+  <div id="toast-region" aria-live="polite"></div>
+  <div id="operation-region" aria-live="polite"></div>
+  <input type="file" id="file-input" accept=".gmd,.txt,.dat,.png,.plist,.zip,.gmdproject,.mp3,.ogg,.opus,.wav,.m4a,.mp4,.aac,.flac,.webm,text/plain,application/octet-stream,image/png,application/zip,audio/*" multiple hidden>
+  <input type="file" id="audio-input" accept="audio/*,.mp3,.ogg,.opus,.wav,.m4a,.aac,.flac,.webm,.mp4" multiple hidden>
+  <input type="file" id="replacement-input" accept=".png,image/png" hidden>
+  <input type="file" id="project-input" accept=".gmdproject,application/zip" hidden>
+  <input type="file" id="folder-input" webkitdirectory directory multiple hidden>
 </body>
 </html>

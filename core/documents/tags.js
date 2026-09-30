@@ -1,0 +1,3 @@
+export const normalizeTag = value => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 48);
+export function normalizeTags(values, limit = 32) { const seen = new Set(), result = []; for (const raw of Array.isArray(values) ? values : []) { const tag = normalizeTag(raw), key = tag.toLocaleLowerCase(); if (tag && !seen.has(key)) { seen.add(key); result.push(tag); if (result.length >= limit) break; } } return result; }
+export function mergeTags(current, additions = [], removals = []) { const removed = new Set(normalizeTags(removals).map(tag => tag.toLocaleLowerCase())); return normalizeTags([...normalizeTags(current).filter(tag => !removed.has(tag.toLocaleLowerCase())), ...normalizeTags(additions)]); }

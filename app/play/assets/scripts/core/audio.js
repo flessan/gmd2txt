@@ -260,6 +260,13 @@ class AudioManager {
       this._music.stop();
       this._music.destroy();
     }
+    if (window._gmdplayerLocalSongKey && window._gmdplayerLocalSongKey === window.currentlevel?.[0] && window._onlineSongBuffer && window._onlineSongKey === window.currentlevel?.[0]) {
+      const localOffset = this._getLevelSongStartOffset() + StartPosOffset;
+      this._playOnlineBuffer(window._onlineSongBuffer, localOffset);
+      this._setupAnalyser();
+      this._musicPlaying = true;
+      return;
+    }
     if (this._shouldUsePracticeSong()) {
       const practiceSongKey = "StayInsideMe";
       if (this._scene.cache.audio.exists(practiceSongKey)) {
@@ -429,6 +436,13 @@ class AudioManager {
     if (this._music) {
       this._music.stop();
       this._music.destroy();
+    }
+    if (window._gmdplayerLocalSongKey && window._gmdplayerLocalSongKey === window.currentlevel?.[0] && window._onlineSongBuffer && window._onlineSongKey === window.currentlevel?.[0]) {
+      this._playOnlineBuffer(window._onlineSongBuffer, this._getLevelSongStartOffset());
+      if (this._onlineGain) this._onlineGain.gain.value = this._effectiveVolume();
+      this._setupAnalyser();
+      this._musicPlaying = true;
+      return;
     }
     if (this._shouldUsePracticeSong()) {
       const practiceSongKey = "StayInsideMe";
