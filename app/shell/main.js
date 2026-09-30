@@ -310,7 +310,7 @@ function renderHome() {
   const asset = (path, className = "", alt = "") => '<img class="' + className + '" src="./play/assets/' + path + '" alt="' + esc(alt) + '">';
   const runtimeBg = "./play/assets/game-bg/game_bg_01_001-hd.png";
   app.innerHTML = '<div class="shell">' + header("home") + '<main class="main-content home-content gd-home">' +
-    '<section class="gd-home-hero" style="--runtime-bg:url("' + runtimeBg + '")">' +
+    '<section class="gd-home-hero" style="--runtime-bg:url(\'' + runtimeBg + '\')">' +
       '<div class="gd-home-hero-copy"><div class="eyebrow">GMDPlayer · local Geometry Dash workspace</div>' +
       '<h1>' + (featured ? esc(featured.document.metadata?.name || "Ready to play") : "Your Geometry Dash workspace") + '</h1>' +
       '<p>' + (featured ? 'Your latest level is ready. Press Play and the existing Geometry Dash runtime will open it directly.' : 'Import a level, save, texture pack, or song and keep the whole workspace on this device.') + '</p>' +
@@ -323,7 +323,7 @@ function renderHome() {
     '</section>' +
     '<section class="gd-section"><div class="gd-section-heading"><div><div class="eyebrow">What do you want to do?</div><h2>Choose a workspace</h2></div><p>Each tool has one clear job. Your files stay connected across the workbench.</p></div>' +
       '<div class="gd-workspace-grid">' +
-        '<a class="gd-workspace-card gd-workspace-play" href="#/library"><div class="gd-workspace-art" style="background-image:url("' + runtimeBg + '")"></div><div class="gd-workspace-card-body"><span class="gd-card-label">Play</span><h3>Play levels</h3><p>Open an imported level directly in the existing Geometry Dash runtime.</p><span class="gd-card-link">Go to Library →</span></div></a>' +
+        '<a class="gd-workspace-card gd-workspace-play" href="#/library"><div class="gd-workspace-art" style="background-image:url(\'' + runtimeBg + '\')"></div><div class="gd-workspace-card-body"><span class="gd-card-label">Play</span><h3>Play levels</h3><p>Open an imported level directly in the existing Geometry Dash runtime.</p><span class="gd-card-link">Go to Library →</span></div></a>' +
         '<a class="gd-workspace-card" href="#/tools/save"><div class="gd-workspace-art gd-save-art">' + asset("sprites/GJ_square01.png","gd-square-art","") + '</div><div class="gd-workspace-card-body"><span class="gd-card-label">Explore</span><h3>Save Explorer</h3><p>Inspect CCGameManager.dat and CCLocalLevels.dat without uploading them.</p><span class="gd-card-link">Open Save Explorer →</span></div></a>' +
         '<a class="gd-workspace-card" href="#/tools/textures"><div class="gd-workspace-art gd-menu-art-bg">' + asset("sprites/GJ_MenuBeta.png","gd-menu-art-small","") + '</div><div class="gd-workspace-card-body"><span class="gd-card-label">Create</span><h3>Texture packs</h3><p>Inspect atlases, replace sprites, and export packs while keeping originals intact.</p><span class="gd-card-link">Open Textures →</span></div></a>' +
         '<a class="gd-workspace-card" href="#/tools/audio"><div class="gd-workspace-art gd-audio-art">' + asset("sprites/GJ_button_03.png","gd-button-art-large","") + '</div><div class="gd-workspace-card-body"><span class="gd-card-label">Manage</span><h3>Songs & audio</h3><p>Keep local songs available for level playback and assign overrides per level.</p><span class="gd-card-link">Open Songs →</span></div></a>' +
