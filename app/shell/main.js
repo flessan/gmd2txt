@@ -695,7 +695,7 @@ function renderSaveCreatedLevels(document) {
 }
 function renderSaveObjectSection(title, value, description) {
   const empty = value == null || (typeof value === "object" && Object.keys(value || {}).length === 0);
-  return '<div class="save-section"><div class="eyebrow">Player data</div><h2>' + esc(title) + "</h2><p class="section-meta">" + esc(description) +
+  return '<div class="save-section"><div class="eyebrow">Player data</div><h2>' + esc(title) + '</h2><p class="section-meta">' + esc(description) +
     "</p>" + (empty ? '<div class="save-empty-note">No data was present.</div>' : '<pre class="save-raw">' + esc(JSON.stringify(maskSensitiveFields(value, true), null, 2)) + "</pre>") + "</div>";
 }
 function renderSaveDownload(document) {
