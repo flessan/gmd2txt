@@ -618,8 +618,8 @@ function renderSaveOverview(document) {
       '</strong></span><span>GS values <strong>' + esc(gm.summary?.statValueEntries || 0) + "</strong></span></div>";
     html += saveStatCards(document);
   }
-  if (n.localLevels) {
-    html += '<div class="save-local-summary"><strong>' + esc(n.localLevels.length) + ' created levels</strong><span>' +
+  if (document.files.localLevels) {
+    html += '<div class="save-local-summary"><strong>' + esc((n.localLevels || []).length) + ' created levels</strong><span>' +
       (n.localLevelErrors?.length ? esc(n.localLevelErrors.length + " entry could not be converted to a Library level.") : "The original CCLocalLevels.dat is preserved unchanged.") +
       '</span><button class="btn primary small" data-action="save-tab" data-tab="created-levels">Open Created Levels →</button></div>';
   }
@@ -1220,6 +1220,7 @@ app.addEventListener("click", async event => {
   if (action === "browse-save") { openImportPicker("save"); return; }
   if (action === "save-tab") { state.saveTab = control.dataset.tab; await renderSaveExplorer(); }
   if (action === "save-file-tab") { state.rawFile = control.dataset.tab; state.saveTab = "raw"; await renderSaveExplorer(); }
+  if (action === "save-open-raw") { state.rawView = control.dataset.view || "json"; state.saveTab = "raw"; await renderSaveExplorer(); return; }
   if (action === "raw-view") { state.rawView = control.dataset.view; await renderSaveExplorer(); }
   if (action === "save-select-all" || action === "save-clear") {
     const record = await getSaveSnapshot(state.route.id);
@@ -1248,6 +1249,7 @@ app.addEventListener("click", async event => {
   if (action === "copy-raw" || action === "download-raw") {
     const record = await getSaveSnapshot(state.route.id);
     if (!record) return;
+    if (control.dataset.view) state.rawView = control.dataset.view;
     const raw = currentRawContent(record.document);
     if (action === "copy-raw") {
       try { await navigator.clipboard.writeText(raw.content); showToast("Masked data copied to clipboard."); }
