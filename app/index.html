@@ -19,9 +19,10 @@
   <script src="./play/assets/scripts/libs/pako.min.js"></script>
   <script>
     (() => {
-      const app = document.getElementById("app");
+      const getApp = () => document.getElementById("app");
       let handled = false;
       const showBootFailure = (message) => {
+        const app = getApp();
         if (handled || !app) return;
         if (!app.innerHTML || app.querySelector(".boot-screen")) {
           handled = true;
@@ -45,7 +46,8 @@
         showBootFailure(event.reason?.stack || event.reason?.message || String(event.reason || "Unhandled promise rejection"));
       });
       window.setTimeout(() => {
-        if (!app || (!app.innerHTML || app.querySelector(".boot-screen"))) {
+        const app = getApp();
+        if (app && (!app.innerHTML || app.querySelector(".boot-screen"))) {
           showBootFailure("GMDPlayer did not finish initializing within 8 seconds.");
         }
       }, 8000);
