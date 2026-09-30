@@ -110,8 +110,11 @@ function utf8(bytes, fatal = true) {
   try { return new TextDecoder("utf-8", { fatal }).decode(bytes); } catch (_) { return null; }
 }
 function isXmlText(text) { return typeof text === "string" && /<(?:\?xml|plist|dict|d)\b/i.test(text) && /<\/(?:plist|dict|d)>/i.test(text); }
+function cleanEncodedText(value) {
+  return String(value ?? "").replace(/^\uFEFF/, "").replace(/[\u0000-\u001f]+$/g, "").trim();
+}
 function base64Bytes(value) {
-  const normalized = value.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const normalized = cleanEncodedText(value).replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
   if (!normalized || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) || normalized.length % 4 === 1) return null;
   const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
   try {
@@ -214,38 +217,75 @@ function findNamedValue(object, names) {
   return found;
 }
 
+function dictionaryEntries(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value).filter(([key]) => key !== "_isArr");
+}
+function scalarNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
 function normalizeOfficialLevels(tree) {
-  const progress = findNamedValue(tree, ["glm_01", "gs_10", "gs_7"]);
-  if (!progress || typeof progress !== "object") return [];
-  return Object.entries(progress).filter(([key]) => key !== "_isArr").map(([id, value]) => {
-    const record = value && typeof value === "object" ? value : { progress: value };
-    const progressValue = record.progress ?? record.percent ?? record.k6 ?? record.k7 ?? record.k2 ?? (typeof value === "number" || typeof value === "string" ? value : undefined);
-    return { id, name: record.k2 || record.name || `Level ${id}`, progress: progressValue, attempts: record.k5 ?? record.attempts, stars: record.k3 ?? record.stars, raw: value };
+  const source = findNamedValue(tree, ["glm_01"]);
+  if (!source || typeof source !== "object") return [];
+  return dictionaryEntries(source).map(([key, value]) => {
+    const record = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const id = scalarNumber(record.k1) ?? scalarNumber(key) ?? key;
+    const fields = {};
+    for (const field of ["k1","k2","k7","k8","k18","k19","k21","k25","k26","k36","k37","k50","k64","k71","k76","k85","k86","k87","k88","k89","k90"]) {
+      if (record[field] !== undefined) fields[field] = record[field];
+    }
+    return { key, id, name: String(record.k2 || "Level " + id), raw: value, fields };
   });
 }
-
+function normalizeKeyedValues(value) {
+  return dictionaryEntries(value).map(([key, raw]) => ({ key, value: raw }));
+}
+function nonEmptyGdGroups(tree, prefix) {
+  return Object.entries(tree || {})
+    .filter(([key]) => new RegExp("^" + prefix + "_[0-9]+$").test(key))
+    .map(([key, value]) => ({ key, entries: dictionaryEntries(value), raw: value }))
+    .filter(group => group.entries.length || (group.raw != null && typeof group.raw !== "object"));
+}
 export function normalizeSaveData(tree, saveType) {
-  const result = { stats: {}, levels: [], localLevelRecords: [], quests: null, achievements: null, player: {}, misc: {} };
+  const result = {
+    stats: {}, statValues: [], levels: [], localLevelRecords: [], quests: null, achievements: null,
+    collections: [], player: {}, misc: {},
+    summary: { topLevelKeys: 0, officialLevelRecords: 0, statValueEntries: 0, nonEmptyGameStateGroups: 0, nonEmptyLevelGroups: 0 }
+  };
   if (saveType === "game-manager") {
+    const playerName = findNamedValue(tree, ["playername"]);
+    const playerUdid = findNamedValue(tree, ["playerudid"]);
+    const binaryVersion = findNamedValue(tree, ["binaryversion"]);
+    if (playerName !== undefined) result.player.name = playerName;
+    if (playerUdid !== undefined) result.player.udid = playerUdid;
+    if (binaryVersion !== undefined) result.binaryVersion = binaryVersion;
     for (const [label, aliases] of Object.entries(STAT_FIELDS)) {
       const value = findField(tree, aliases);
       if (value !== undefined) result.stats[label] = value;
     }
-    const playerName = findNamedValue(tree, ["playername"]);
-    if (playerName !== undefined) result.player.name = playerName;
-    const version = findNamedValue(tree, ["binaryversion", "version"]);
-    if (version !== undefined) result.gameVersion = version;
+    result.statValues = normalizeKeyedValues(tree?.GS_value);
     result.levels = normalizeOfficialLevels(tree);
-    const completed = findNamedValue(tree, ["gs_completed"]);
-    if (completed !== undefined) result.stats["Completed Levels"] = typeof completed === "object" ? Object.keys(completed).filter(key => key !== "_isArr").length : completed;
     result.quests = findNamedValue(tree, ["gs_12", "gs_15", "quests"]);
     result.achievements = findNamedValue(tree, ["reportedachievements", "gja_001", "achievements"]);
-    const known = new Set(["playername", "playerudid", "playeruserid", "binaryversion", "glm_01", "gs_value", "gs_completed", "gs_10", "gs_12", "gs_15", "reportedachievements", "unlockvaluekeeper"]);
-    result.misc = Object.fromEntries(Object.entries(tree).filter(([key]) => !known.has(key.toLowerCase())));
+    result.collections = nonEmptyGdGroups(tree, "GS");
+    result.summary = {
+      topLevelKeys: Object.keys(tree || {}).length,
+      officialLevelRecords: result.levels.length,
+      statValueEntries: result.statValues.length,
+      nonEmptyGameStateGroups: result.collections.length,
+      nonEmptyLevelGroups: nonEmptyGdGroups(tree, "GLM").length
+    };
+    const known = new Set(["playername","playerudid","playeruserid","binaryversion","glm_01","gs_value","gs_completed","gs_10","gs_12","gs_15","reportedachievements","unlockvaluekeeper"]);
+    result.misc = Object.fromEntries(Object.entries(tree || {}).filter(([key]) => !known.has(String(key).toLowerCase())));
   }
   return result;
 }
 
+function extractGameVersion(xml) {
+  const match = String(xml || "").match(/\bgjver=["']([^"']+)["']/i);
+  return match?.[1] ?? null;
+}
 export async function decodeSaveFile(file) {
   if (file && typeof file === "object" && decodedFileCache.has(file)) return decodedFileCache.get(file);
   const task = (async () => {
@@ -257,8 +297,18 @@ export async function decodeSaveFile(file) {
       const saveType = inferSaveType(tree, file.name);
       if (!saveType) throw new SaveDecodeError("unrecognized Geometry Dash save structure");
       const normalized = normalizeSaveData(tree, saveType);
-      const versionMatch = xml.match(/\bgjver=["']([^"']+)["']/i);
-      return { xml, tree, saveType, encoding, gameVersion: normalized.gameVersion ?? versionMatch?.[1] ?? null, normalized };
+      const gameVersion = extractGameVersion(xml);
+      return {
+        xml, tree, saveType, encoding, gameVersion,
+        binaryVersion: normalized.binaryVersion ?? null,
+        normalized,
+        diagnostics: {
+          inputBytes: bytes.length,
+          xmlBytes: new TextEncoder().encode(xml).length,
+          encoding,
+          topLevelKeys: normalized.summary?.topLevelKeys ?? Object.keys(tree || {}).length
+        }
+      };
     } catch (error) {
       if (error instanceof SaveDecodeError) throw error;
       throw new SaveDecodeError("invalid XML payload");

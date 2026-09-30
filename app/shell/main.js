@@ -62,7 +62,7 @@ function esc(value) {
 }
 function route(path) { location.hash = path; }
 function supportsDirectorySelection(){const input=document.querySelector("#folder-input");return Boolean(input&&("webkitdirectory" in input||"directory" in input));}
-function openImportPicker(kind="all"){state.importKind=kind;const input=document.querySelector("#file-input");if(!input)return;input.accept=kind==="level"?".gmd,.txt,text/plain":kind==="texture"?".png,.plist,.zip,image/png,application/zip":".gmd,.txt,.dat,.png,.plist,.zip,.gmdproject,.mp3,.ogg,.opus,.wav,.m4a,.mp4,.aac,.flac,.webm,audio/*";input.value="";input.click();}
+function openImportPicker(kind="all"){state.importKind=kind;const input=document.querySelector("#file-input");if(!input)return;input.accept=kind==="level"?".gmd,.txt,text/plain":kind==="texture"?".png,.plist,.zip,image/png,application/zip":kind==="save"?".dat,application/octet-stream":".gmd,.txt,.dat,.png,.plist,.zip,.gmdproject,.mp3,.ogg,.opus,.wav,.m4a,.mp4,.aac,.flac,.webm,audio/*";input.value="";input.click();}
 function setOperationStatus(message="",current=0,total=0){const region=document.querySelector("#operation-region");if(!region)return;if(!message){region.replaceChildren();return;}region.innerHTML=`<div class="operation-status" role="status"><strong>${esc(message)}</strong>${total?`<span>${current} / ${total}</span><progress max="${total}" value="${current}"></progress>`:""}</div>`;}
 function showToast(message, type = "") {
   const toast = document.createElement("div");
@@ -562,43 +562,151 @@ async function drawTexturePreviews(packId, sheet, frame, modification) {
 function saveTabs(document) {
   const n = document.normalized || {};
   const tabs = [{ id: "overview", title: "Overview" }];
-  if (n.gameManager?.stats && Object.keys(n.gameManager.stats).length) tabs.push({ id: "stats", title: "Stats" });
-  if (document.files.localLevels || n.localLevels?.length || n.gameManager?.levels?.length) tabs.push({ id: "levels", title: `Levels${n.localLevels?.length ? ` · ${n.localLevels.length}` : ""}` });
-  if (n.gameManager?.quests) tabs.push({ id: "quests", title: "Quests" });
-  if (n.gameManager?.achievements) tabs.push({ id: "achievements", title: "Achievements" });
-  if (n.gameManager?.misc && Object.keys(n.gameManager.misc).length) tabs.push({ id: "misc", title: "Misc" });
-  tabs.push({ id: "raw", title: "Raw Data" });
+  if (n.gameManager) {
+    tabs.push({ id: "basic", title: "Basic Stats" });
+    if (n.gameManager.statValues?.length) tabs.push({ id: "breakdown", title: "Stats Breakdown" });
+    if (n.gameManager.levels?.length) tabs.push({ id: "all-levels", title: "All Levels" });
+    if (n.gameManager.collections?.length) tabs.push({ id: "collections", title: "Collections" });
+    if (n.gameManager.quests) tabs.push({ id: "quests", title: "Quests" });
+    if (n.gameManager.achievements) tabs.push({ id: "achievements", title: "Achievements" });
+    tabs.push({ id: "misc", title: "Misc Info" });
+  }
+  if (document.files.localLevels) tabs.push({ id: "created-levels", title: "Created Levels" });
+  tabs.push({ id: "download", title: "Download" }, { id: "raw", title: "Raw Data" });
   return tabs;
 }
-function saveMetricGrid(stats) {
+function saveMetricGrid(stats, empty) {
   const entries = Object.entries(stats || {});
-  return entries.length ? `<div class="save-stat-grid">${entries.map(([label, value]) => `<div class="save-stat"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join("")}</div>` : `<div class="save-empty-note">No named stats were present in this save file.</div>`;
+  if (!entries.length) return '<div class="save-empty-note">' + esc(empty || "No named stats are present in this save.") + "</div>";
+  return '<div class="save-stat-grid">' + entries.map(([label, value]) =>
+    '<div class="save-stat"><small>' + esc(label) + "</small><strong>" + esc(value) + "</strong></div>"
+  ).join("") + "</div>";
+}
+function saveStatCards(document) {
+  const gm = document.normalized?.gameManager;
+  const summary = gm?.summary || {};
+  const cards = [
+    ["Official levels", summary.officialLevelRecords || 0],
+    ["GS values", summary.statValueEntries || 0],
+    ["Top-level keys", summary.topLevelKeys || 0],
+    ["State groups", summary.nonEmptyGameStateGroups || 0]
+  ];
+  return '<div class="save-stat-grid">' + cards.map(([label, value]) =>
+    '<div class="save-stat save-stat-accent"><small>' + esc(label) + "</small><strong>" + esc(value) + "</strong></div>"
+  ).join("") + "</div>";
 }
 function renderSaveOverview(document) {
-  const n = document.normalized || {};
-  const files = [["Player Data", document.files.gameManager], ["Local Levels", document.files.localLevels]].filter(([, file]) => file);
-  return `<div class="save-section"><div class="eyebrow">Snapshot overview</div><h2>Geometry Dash Save</h2><p class="subhead">Decoded and inspected locally. Original binaries are retained unchanged.</p>
-    <div class="save-file-grid">${files.map(([label, file]) => `<div class="save-file-card"><span class="save-file-icon">${icon("save")}</span><div><strong>${esc(file.filename)}</strong><small>${esc(label)} · ${Math.ceil(file.size / 1024)} KB</small></div><span class="saved-dot">●</span></div>`).join("")}</div>
-    ${n.gameManager?.player?.name ? `<div class="save-player-label">Player name <strong>${esc(n.gameManager.player.name)}</strong></div>` : ""}
-    ${n.gameManager?.stats && Object.keys(n.gameManager.stats).length ? `<h3>Available stats</h3>${saveMetricGrid(n.gameManager.stats)}` : ""}
-    <div class="save-summary-row"><span>Platform <strong>${esc(document.metadata.platform || "Unknown")}</strong></span><span>Game version <strong>${esc(document.metadata.gameVersion ?? "Not present")}</strong></span><span>Imported <strong>${esc(fmtDate(document.metadata.importedAt))}</strong></span></div>
-    ${document.files.localLevels ? `<div class="save-local-summary"><strong>${n.localLevels?.length ?? 0} local levels found</strong><span>${n.localLevelErrors?.length ? `${n.localLevelErrors.length} entry could not be decoded` : "No changes made to the save"}</span><button class="btn primary small" data-action="save-tab" data-tab="levels">Review levels →</button></div>` : ""}
-  </div>`;
+  const n = document.normalized || {}, gm = n.gameManager;
+  const files = [
+    ["CCGameManager.dat", document.files.gameManager, "Player and progress data"],
+    ["CCLocalLevels.dat", document.files.localLevels, "Created level data"]
+  ].filter((entry) => entry[1]);
+  let html = '<div class="save-section"><div class="save-hero"><div><div class="eyebrow">Geometry Dash Save Explorer</div><h2>' +
+    esc(gm?.player?.name || "Local save workspace") +
+    '</h2><p>Decoded locally. Original save binaries remain unchanged.</p></div>';
+  html += '<div class="save-decode-badge"><span class="status-dot"></span><strong>' +
+    esc(document.metadata.gameVersion ? "GD " + document.metadata.gameVersion : "GD save") +
+    '</strong><small>' + esc(document.metadata.encoding || "decoded") + "</small></div></div>";
+  html += '<div class="save-file-grid">' + files.map(([label, file, description]) =>
+    '<div class="save-file-card save-source-card"><span class="save-file-icon">' + icon("save") + '</span><div><strong>' +
+    esc(label) + "</strong><small>" + esc(description) + " · " + Math.ceil(file.size / 1024) + ' KB</small></div><span class="saved-dot">●</span></div>'
+  ).join("") + "</div>";
+  if (gm) {
+    html += '<div class="save-summary-row"><span>Game version <strong>' + esc(document.metadata.gameVersion ?? "Not present") +
+      '</strong></span><span>Binary version <strong>' + esc(document.metadata.binaryVersion ?? "Not present") +
+      '</strong></span><span>Official records <strong>' + esc(gm.summary?.officialLevelRecords || 0) +
+      '</strong></span><span>GS values <strong>' + esc(gm.summary?.statValueEntries || 0) + "</strong></span></div>";
+    html += saveStatCards(document);
+  }
+  if (n.localLevels) {
+    html += '<div class="save-local-summary"><strong>' + esc(n.localLevels.length) + ' created levels</strong><span>' +
+      (n.localLevelErrors?.length ? esc(n.localLevelErrors.length + " entry could not be converted to a Library level.") : "The original CCLocalLevels.dat is preserved unchanged.") +
+      '</span><button class="btn primary small" data-action="save-tab" data-tab="created-levels">Open Created Levels →</button></div>';
+  }
+  return html + "</div>";
 }
-function renderSaveLevels(document) {
-  const normalized = document.normalized || {};
-  const local = normalized.localLevels || [];
+function renderSaveBasic(document) {
+  const gm = document.normalized?.gameManager;
+  if (!gm) return '<div class="save-section"><h2>Basic Stats</h2><div class="save-empty-note">CCGameManager.dat was not included in this snapshot.</div></div>';
+  let html = '<div class="save-section"><div class="eyebrow">Player information</div><h2>Basic Stats</h2><div class="save-identity-grid">';
+  const items = [
+    ["Player", gm.player?.name || "Unknown"],
+    ["Geometry Dash version", document.metadata.gameVersion || "Unknown"],
+    ["Binary version", document.metadata.binaryVersion ?? "Unknown"],
+    ["Encoding", document.metadata.encoding || "Unknown"]
+  ];
+  html += items.map(([label, value]) => '<div><span>' + esc(label) + "</span><strong>" + esc(value) + "</strong></div>").join("");
+  html += "</div>" + saveStatCards(document) + saveMetricGrid(gm.stats);
+  if (gm.player?.udid) html += '<details class="save-sensitive-box"><summary>Player identifier</summary><code>' + esc(gm.player.udid) + "</code><p>Hidden from exports by default.</p></details>";
+  return html + "</div>";
+}
+function renderSaveBreakdown(document) {
+  const values = document.normalized?.gameManager?.statValues || [];
+  let html = '<div class="save-section"><div class="eyebrow">Geometry Dash internal state</div><h2>Stats Breakdown</h2><p class="section-meta">Raw ' +
+    esc(values.length) + ' entries from <code>GS_value</code>. The numeric keys are preserved instead of being guessed.</p>';
+  if (!values.length) return html + '<div class="save-empty-note">No GS_value entries are present.</div></div>';
+  html += '<div class="save-data-table-wrap"><table class="save-data-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>';
+  html += values.map(item => '<tr><td><code>' + esc(item.key) + "</code></td><td>" +
+    esc(typeof item.value === "object" ? JSON.stringify(maskSensitiveFields(item.value, true)) : item.value) +
+    "</td></tr>").join("");
+  return html + "</tbody></table></div></div>";
+}
+function renderSaveAllLevels(document) {
+  const levels = document.normalized?.gameManager?.levels || [];
   const query = state.saveQuery.toLowerCase().trim();
-  const matchingSaveLevels=local.filter(item => `${item.name} ${item.levelId ?? ""}`.toLowerCase().includes(query)),shown=matchingSaveLevels.slice(0,state.saveLevelLimit);
-  const official = normalized.gameManager?.levels || [];
-  return `<div class="save-section"><div class="save-section-head"><div><div class="eyebrow">Level records</div><h2>Levels</h2><p class="section-meta">Local levels can be imported as regular Library documents. The save snapshot remains untouched.</p></div></div>
-    ${document.files.localLevels ? `<div class="save-level-toolbar"><span><strong>${local.length}</strong> local levels · showing ${shown.length} · <strong>${state.selectedSaveLevels.size}</strong> selected</span><div><button class="btn small" data-action="save-select-all">Select all</button><button class="btn small" data-action="save-clear">Clear</button><button class="btn small" data-action="save-import-all">Import All</button><button class="btn primary small" data-action="save-import-selected" ${state.selectedSaveLevels.size ? "" : "disabled"}>Import selected</button></div></div>
-    <input class="search save-search" id="save-search" placeholder="Search local levels…" value="${esc(state.saveQuery)}" aria-label="Search local levels">
-    ${shown.length ? `<div class="save-level-list">${shown.map(item => `<div class="save-level-row"><input type="checkbox" data-save-level="${esc(item.id)}" aria-label="Select ${esc(item.name)}" ${state.selectedSaveLevels.has(item.id) ? "checked" : ""}><span class="save-level-name">${esc(item.name)}</span><span>${item.levelId == null ? "Local" : `ID ${esc(item.levelId)}`}</span><span>${esc(item.document.metadata.song?.name || "Song unavailable")}</span><button class="btn small" type="button" data-action="save-import-one" data-id="${esc(item.id)}">Add</button></div>`).join("")}</div>${shown.length<matchingSaveLevels.length?`<button class="btn load-more" data-action="load-more-save-levels">Show next ${Math.min(200,matchingSaveLevels.length-shown.length)} levels</button>`:""}` : `<div class="save-empty-note">${local.length ? "No local levels match the search." : "No local levels were found in this snapshot."}</div>`}
-    ${normalized.localLevelErrors?.length ? `<p class="save-warning">${normalized.localLevelErrors.length} local level record(s) could not be decoded.</p>` : ""}` : `<div class="save-empty-note">This snapshot does not include CCLocalLevels.dat.</div>`}
-    ${official.length ? `<h3 class="save-subsection-title">Official / played levels</h3><div class="save-level-list">${official.filter(level => `${level.name} ${level.id}`.toLowerCase().includes(query)).map(level => `<div class="save-level-row"><span></span><span class="save-level-name">${esc(level.name)}</span><span>ID ${esc(level.id)}</span><span>${level.progress === undefined ? "Progress not present" : `${esc(level.progress)}%`}</span><span>${level.attempts === undefined ? "" : `${esc(level.attempts)} attempts`}</span></div>`).join("")}</div>` : ""}
-  </div>`;
+  const shown = levels.filter(level => (String(level.name) + " " + String(level.id)).toLowerCase().includes(query));
+  let html = '<div class="save-section"><div class="eyebrow">Official level records</div><h2>All Levels</h2><div class="save-level-toolbar"><span><strong>' +
+    esc(levels.length) + '</strong> records</span><input class="search save-search" id="save-search" placeholder="Search level name or ID…" value="' + esc(state.saveQuery) + '" aria-label="Search official levels"></div>';
+  if (!shown.length) return html + '<div class="save-empty-note">No official level records match the search.</div></div>';
+  html += '<div class="save-data-table-wrap"><table class="save-data-table"><thead><tr><th>ID</th><th>Name</th><th>GD fields</th></tr></thead><tbody>';
+  html += shown.map(level => '<tr><td>' + esc(level.id) + '</td><td class="save-level-name">' + esc(level.name) +
+    '</td><td><code>' + esc(Object.entries(level.fields || {}).map(([k,v]) => k + "=" + (typeof v === "boolean" ? "true" : v)).join(" · ")) +
+    "</code></td></tr>").join("");
+  return html + "</tbody></table></div></div>";
 }
+function renderSaveCollections(document) {
+  const groups = document.normalized?.gameManager?.collections || [];
+  let html = '<div class="save-section"><div class="eyebrow">Internal save collections</div><h2>Collections</h2><p class="section-meta">Non-empty <code>GS_*</code> groups discovered in this save. Original keys are preserved.</p><div class="save-collection-grid">';
+  html += groups.map(group => '<div class="save-collection-card"><strong>' + esc(group.key) + '</strong><span>' + esc(group.entries.length) +
+    ' entries</span><code>' + esc(group.entries.slice(0, 8).map(([key]) => key).join(", ") || "scalar") + "</code></div>").join("");
+  return html + "</div></div>";
+}
+function renderSaveCreatedLevels(document) {
+  const local = document.normalized?.localLevels || [];
+  const query = state.saveQuery.toLowerCase().trim();
+  const matching = local.filter(item => (String(item.name) + " " + String(item.levelId ?? "")).toLowerCase().includes(query));
+  const shown = matching.slice(0, state.saveLevelLimit);
+  let html = '<div class="save-section"><div class="eyebrow">Custom levels</div><h2>Created Levels</h2><p class="section-meta">Decoded from CCLocalLevels.dat. Adding a level to Library never writes to the original save.</p>';
+  html += '<div class="save-level-toolbar"><span><strong>' + esc(local.length) + '</strong> levels · showing ' + esc(shown.length) + ' · <strong>' + esc(state.selectedSaveLevels.size) +
+    '</strong> selected</span><div><button class="btn small" data-action="save-select-all">Select all</button><button class="btn small" data-action="save-clear">Clear</button><button class="btn small" data-action="save-import-all">Import All</button><button class="btn primary small" data-action="save-import-selected" ' +
+    (state.selectedSaveLevels.size ? "" : "disabled") + '>Import selected</button></div></div>';
+  html += '<input class="search save-search" id="save-search" placeholder="Search created levels…" value="' + esc(state.saveQuery) + '" aria-label="Search created levels">';
+  if (!shown.length) return html + '<div class="save-empty-note">' + (local.length ? "No created levels match the search." : "CCLocalLevels.dat contains no created levels.") + "</div></div>";
+  html += '<div class="save-data-table-wrap"><table class="save-data-table"><thead><tr><th></th><th>Name</th><th>ID</th><th>Song</th><th>Action</th></tr></thead><tbody>';
+  html += shown.map(item => '<tr><td><input type="checkbox" data-save-level="' + esc(item.id) + '" aria-label="Select ' + esc(item.name) + '" ' +
+    (state.selectedSaveLevels.has(item.id) ? "checked" : "") + '></td><td class="save-level-name">' + esc(item.name) + '</td><td>' +
+    esc(item.levelId == null ? "Local" : item.levelId) + '</td><td>' + esc(item.document.metadata.song?.name || "Unknown") +
+    '</td><td><button class="btn small" type="button" data-action="save-import-one" data-id="' + esc(item.id) + '">Add to Library</button></td></tr>'
+  ).join("");
+  html += "</tbody></table></div>";
+  if (shown.length < matching.length) html += '<button class="btn load-more" data-action="load-more-save-levels">Show next ' + Math.min(200, matching.length - shown.length) + " levels</button>";
+  if (document.normalized?.localLevelErrors?.length) html += '<p class="save-warning">' + esc(document.normalized.localLevelErrors.length) + " created level record(s) could not be decoded.</p>";
+  return html + "</div>";
+}
+function renderSaveObjectSection(title, value, description) {
+  const empty = value == null || (typeof value === "object" && Object.keys(value || {}).length === 0);
+  return '<div class="save-section"><div class="eyebrow">Player data</div><h2>' + esc(title) + "</h2><p class="section-meta">" + esc(description) +
+    "</p>" + (empty ? '<div class="save-empty-note">No data was present.</div>' : '<pre class="save-raw">' + esc(JSON.stringify(maskSensitiveFields(value, true), null, 2)) + "</pre>") + "</div>";
+}
+function renderSaveDownload(document) {
+  const files = Object.entries({ gameManager: document.files.gameManager, localLevels: document.files.localLevels }).filter(([, file]) => file);
+  let html = '<div class="save-section"><div class="eyebrow">Takeout</div><h2>Download your data</h2><p class="section-meta">Export the exact original binary or a masked decoded view.</p><div class="save-download-grid">';
+  html += files.map(([slot, file]) => '<div class="save-download-card"><strong>' + esc(file.filename) + '</strong><small>' + Math.ceil(file.size / 1024) +
+    ' KB · original bytes preserved</small><button class="btn primary small" data-action="save-download-original" data-slot="' + esc(slot) + '">Download original</button></div>').join("");
+  html += '</div><div class="save-download-grid"><div class="save-download-card"><strong>Decoded JSON</strong><small>Masked by default</small><div class="save-download-actions"><button class="btn small" data-action="raw-view" data-view="json">Open JSON</button><button class="btn small" data-action="download-raw">Export JSON</button></div></div><div class="save-download-card"><strong>Decoded XML</strong><small>Masked by default</small><div class="save-download-actions"><button class="btn small" data-action="raw-view" data-view="xml">Open XML</button><button class="btn small" data-action="download-raw">Export XML</button></div></div></div></div>';
+  return html;
+}
+
 function currentRawContent(document) {
   const slot = document.decoded?.[state.rawFile] ? state.rawFile : document.decoded?.gameManager ? "gameManager" : "localLevels";
   const tree = document.decoded?.[slot]?.tree;
@@ -619,7 +727,15 @@ async function renderSaveExplorer() {
   let record = state.route.id ? await getSaveSnapshot(state.route.id) : state.saves[0] || null;
   if (!record && state.route.id) { renderRouteFailure(new Error("This save snapshot is no longer available.")); return; }
   if (!record) {
-    app.innerHTML = `<div class="shell">${header("tools")}<main class="main-content"><a class="back-link" href="#/tools">← Tools</a><div class="eyebrow">Local only</div><h2>Save Explorer</h2><div class="empty-state"><h3>No save snapshot selected</h3><p>Drop CCGameManager.dat, CCLocalLevels.dat, or both to create a local snapshot.</p><button class="btn primary" data-action="browse">Choose save files</button></div></main></div>`;
+    app.innerHTML = '<div class="shell">' + header("tools") + '<main class="main-content save-explorer save-landing"><a class="back-link" href="#/tools">← Tools</a>' +
+      '<section class="save-landing-hero"><div class="eyebrow">Local Geometry Dash tool</div><h1>Geometry Dash Save Explorer</h1>' +
+      '<p>Open <strong>CCGameManager.dat</strong> for player and progress data or <strong>CCLocalLevels.dat</strong> for created levels. Everything is decoded in this browser.</p>' +
+      '<button class="btn primary" data-action="browse-save">' + icon("import") + ' Choose save files</button></section>' +
+      '<section class="save-drop-grid"><div class="save-drop-card"><div class="save-drop-icon">' + icon("save") + '</div><h2>CCGameManager.dat</h2>' +
+      '<p>Player name, version, internal stats, official level records and other account-local state.</p><button class="btn" data-action="browse-save">Choose .dat file</button></div>' +
+      '<div class="save-drop-card"><div class="save-drop-icon">' + icon("texture") + '</div><h2>CCLocalLevels.dat</h2>' +
+      '<p>Created level storage. An empty file is valid and will simply show an empty Created Levels view.</p><button class="btn" data-action="browse-save">Choose .dat file</button></div></section>' +
+      '<div class="save-offline-note"><span class="status-dot"></span><span>100% local parsing · original files are not uploaded</span></div></main></div>';
     return;
   }
   if (state.activeSaveId !== record.id) {
@@ -629,23 +745,32 @@ async function renderSaveExplorer() {
     state.rawFile = "gameManager";
     state.saveTab = "overview";
     state.selectedSaveLevels.clear();
+    state.saveQuery = "";
   }
   const document = record.document;
   const tabs = saveTabs(document);
   if (!tabs.some(tab => tab.id === state.saveTab)) state.saveTab = "overview";
-  let panel = state.saveTab === "levels" ? renderSaveLevels(document)
-    : state.saveTab === "raw" ? renderSaveRaw(document)
-      : state.saveTab === "stats" ? `<div class="save-section"><div class="eyebrow">Player data</div><h2>Stats</h2>${saveMetricGrid(document.normalized?.gameManager?.stats)}</div>`
-        : state.saveTab === "quests" ? `<div class="save-section"><div class="eyebrow">Player data</div><h2>Quests</h2><pre class="save-raw">${esc(JSON.stringify(maskSensitiveFields(document.normalized.gameManager.quests, true), null, 2))}</pre></div>`
-          : state.saveTab === "achievements" ? `<div class="save-section"><div class="eyebrow">Player data</div><h2>Achievements</h2><pre class="save-raw">${esc(JSON.stringify(maskSensitiveFields(document.normalized.gameManager.achievements, true), null, 2))}</pre></div>`
-            : state.saveTab === "misc" ? `<div class="save-section"><div class="eyebrow">Player data</div><h2>Misc</h2><pre class="save-raw">${esc(JSON.stringify(maskSensitiveFields(document.normalized.gameManager.misc, true), null, 2))}</pre></div>`
-              : renderSaveOverview(document);
-  app.innerHTML = `<div class="shell">${header("tools")}<main class="main-content save-explorer"><a class="back-link" href="#/tools">← Tools</a>${state.importing ? `<div class="import-progress">${esc(state.importStatus)}<div class="progress-track"><div class="progress-fill"></div></div></div>` : ""}<div class="save-title-line"><div><div class="eyebrow">Save Explorer · read-only</div><h1>${esc(record.sourceFilenames?.join(" + ") || "Geometry Dash Save")}</h1><p class="section-meta">Original files retained · Parsed locally · Nothing uploaded</p></div><button class="btn small" data-action="delete-save" data-id="${esc(record.id)}">Remove snapshot</button></div>
-    <div class="save-file-switcher">${[document.files.gameManager && ["gameManager", "Player Data", document.files.gameManager], document.files.localLevels && ["localLevels", "Local Levels", document.files.localLevels]].filter(Boolean).map(([slot, label, file]) => `<button class="save-source-chip" data-action="save-file-tab" data-tab="${slot}"><span class="saved-dot">●</span><span><strong>${esc(label)}</strong><small>${esc(file.filename)}</small></span></button>`).join("")}</div>
-    <div class="save-workspace"><nav class="save-tabs" aria-label="Save data sections">${tabs.map(tab => `<button class="save-tab ${state.saveTab === tab.id ? "selected" : ""}" data-action="save-tab" data-tab="${tab.id}">${esc(tab.title)}</button>`).join("")}</nav><section class="save-panel">${panel}</section></div>
-    <div class="save-privacy-note"><span class="status-dot"></span>Save parsing runs in this browser. No save data or decoded content is sent to a server.</div>
-  </main></div>`;
+  let panel;
+  if (state.saveTab === "basic") panel = renderSaveBasic(document);
+  else if (state.saveTab === "breakdown") panel = renderSaveBreakdown(document);
+  else if (state.saveTab === "all-levels") panel = renderSaveAllLevels(document);
+  else if (state.saveTab === "collections") panel = renderSaveCollections(document);
+  else if (state.saveTab === "created-levels") panel = renderSaveCreatedLevels(document);
+  else if (state.saveTab === "quests") panel = renderSaveObjectSection("Quests", document.normalized?.gameManager?.quests, "Quest data is preserved with its original keys.");
+  else if (state.saveTab === "achievements") panel = renderSaveObjectSection("Achievements", document.normalized?.gameManager?.achievements, "Achievement data is preserved with its original keys.");
+  else if (state.saveTab === "misc") panel = renderSaveObjectSection("Misc Info", document.normalized?.gameManager?.misc, "Top-level data not assigned to a specialized viewer.");
+  else if (state.saveTab === "download") panel = renderSaveDownload(document);
+  else if (state.saveTab === "raw") panel = renderSaveRaw(document);
+  else panel = renderSaveOverview(document);
+  app.innerHTML = '<div class="shell">' + header("tools") + '<main class="main-content save-explorer"><a class="back-link" href="#/tools">← Tools</a>' +
+    (state.importing ? '<div class="import-progress">' + esc(state.importStatus) + '<div class="progress-track"><div class="progress-fill"></div></div></div>' : '') +
+    '<div class="save-title-line"><div><div class="eyebrow">Geometry Dash Save Explorer</div><h1>' + esc(record.sourceFilenames?.join(" + ") || "Geometry Dash Save") +
+    '</h1><p class="section-meta">Parsed locally · original binaries retained · no network upload</p></div><button class="btn small" data-action="delete-save" data-id="' + esc(record.id) + '">Remove snapshot</button></div>' +
+    '<div class="save-workspace"><nav class="save-tabs save-category-tabs" aria-label="Save data sections">' +
+    tabs.map(tab => '<button class="save-tab ' + (state.saveTab === tab.id ? "selected" : "") + '" data-action="save-tab" data-tab="' + esc(tab.id) + '">' + esc(tab.title) + "</button>").join("") +
+    '</nav><section class="save-panel">' + panel + '</section></div><div class="save-privacy-note"><span class="status-dot"></span>Save parsing runs in this browser. No save data or decoded content is sent to a server.</div></main></div>';
 }
+
 async function importSnapshotLevels(ids) {
   const record = await getSaveSnapshot(state.route.id);
   const documents = record?.document?.normalized?.localLevels || [];
@@ -1092,6 +1217,7 @@ app.addEventListener("click", async event => {
     } catch (error) { showToast(error.message || "Texture export failed.", "error"); }
   }
   if (action === "toggle-nav") { document.body.classList.toggle("nav-open"); control.setAttribute("aria-expanded", String(document.body.classList.contains("nav-open"))); }
+  if (action === "browse-save") { openImportPicker("save"); return; }
   if (action === "save-tab") { state.saveTab = control.dataset.tab; await renderSaveExplorer(); }
   if (action === "save-file-tab") { state.rawFile = control.dataset.tab; state.saveTab = "raw"; await renderSaveExplorer(); }
   if (action === "raw-view") { state.rawView = control.dataset.view; await renderSaveExplorer(); }
@@ -1109,6 +1235,15 @@ app.addEventListener("click", async event => {
   if (action === "save-import-one") await importSnapshotLevels([id]);
   if (action === "delete-save" && confirm("Remove this saved snapshot from GMDPlayer? The original save file on your device will not be changed.")) {
     await deleteSaveSnapshot(id); state.selectedSaveLevels.clear(); route("/tools"); showToast("Save snapshot removed. Your original file is unchanged.");
+  }
+  if (action === "save-download-original") {
+    const snapshot = await getSaveSnapshot(state.route.id);
+    const original = snapshot?.document?.files?.[control.dataset.slot]?.original;
+    const filename = snapshot?.document?.files?.[control.dataset.slot]?.filename || (control.dataset.slot === "gameManager" ? "CCGameManager.dat" : "CCLocalLevels.dat");
+    if (!original) { showToast("The original save binary is not available in this snapshot.", "error"); return; }
+    downloadBlob(original, safeFilename(filename));
+    showToast("Original save file exported unchanged.");
+    return;
   }
   if (action === "copy-raw" || action === "download-raw") {
     const record = await getSaveSnapshot(state.route.id);

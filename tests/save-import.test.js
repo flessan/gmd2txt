@@ -11,9 +11,9 @@ const levelString = "kA6,1,kA7,1;1,1,2,32,3,15,999,keep;";
 const innerLevel = gzipSync(levelString).toString("base64url");
 const gameManagerXml = `<?xml version="1.0"?><plist version="1.0" gjver="2.0"><dict><key>binaryVersion</key><integer>42</integer><key>playerName</key><string>Fixture Player</string><key>playerUDID</key><string>private-fixture</string><key>stars</key><integer>91</integer><key>secretCoins</key><integer>7</integer><key>GLM_01</key><dict><key>1</key><dict><key>progress</key><integer>100</integer><key>attempts</key><integer>3</integer></dict></dict><key>reportedAchievements</key><array><string>first</string></array></dict></plist>`;
 const localLevelsXml = `<?xml version="1.0"?><plist version="1.0" gjver="2.0"><dict><key>LLM_01</key><dict><key>_isArr</key><true/><key>k_0</key><dict><key>k1</key><integer>123</integer><key>k2</key><string>Fixture Local</string><key>k3</key><string>SGVsbG8gZGVzY3JpcHRpb24=</string><key>k4</key><string>${innerLevel}</string><key>k8</key><integer>0</integer></dict></dict></dict></plist>`;
-function encryptedFile(name, xml) {
+function encryptedFile(name, xml, padding = []) {
   const encoded = Buffer.from(gzipSync(Buffer.from(xml, "utf8")).toString("base64url"), "utf8");
-  const bytes = Buffer.from(encoded.map(byte => byte ^ 11));
+  const bytes = Buffer.concat([Buffer.from(encoded.map(byte => byte ^ 11)), Buffer.from(padding)]);
   return {
     name, size: bytes.length, type: "application/octet-stream",
     async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength); },
@@ -25,6 +25,7 @@ function plainXmlFile(name, xml) {
   return { name, size: bytes.length, async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength); }, slice() { return new Blob([bytes]); } };
 }
 const manager = () => encryptedFile("CCGameManager.dat", gameManagerXml);
+const paddedManager = () => encryptedFile("CCGameManager.dat", gameManagerXml, [0, 3]);
 const localLevels = () => encryptedFile("CCLocalLevels.dat", localLevelsXml);
 
 test("XML parser handles plist dictionaries, arrays, booleans, and GD shorthand tags", () => {
@@ -43,6 +44,13 @@ test("save detector validates content and does not accept arbitrary DAT files", 
   const result = await detectFile(broken);
   assert.equal(result.kind, "save");
   assert.equal(result.invalid, true);
+});
+
+test("decoder accepts Geometry Dash encoded save text with trailing binary padding", async () => {
+  const save = await importSave([paddedManager()]);
+  assert.equal(save.metadata.gameVersion, "2.0");
+  assert.equal(save.metadata.binaryVersion, 42);
+  assert.equal(save.normalized.gameManager.player.name, "Fixture Player");
 });
 
 test("decoder accepts a directly readable XML variant", async () => {
@@ -65,7 +73,8 @@ test("decoder normalizes available stats and leaves missing fields absent", asyn
   assert.equal(save.normalized.gameManager.stats.Stars, 91);
   assert.equal(save.normalized.gameManager.stats["Secret Coins"], 7);
   assert.equal(save.normalized.gameManager.stats.Diamonds, undefined);
-  assert.equal(save.metadata.gameVersion, 42);
+  assert.equal(save.metadata.gameVersion, "2.0");
+  assert.equal(save.metadata.binaryVersion, 42);
   assert.match(save.decoded.gameManager.xml, /Fixture Player/);
   assert.ok(save.files.gameManager.original instanceof Blob);
   assert.equal(save.files.gameManager.size, manager().size);
@@ -97,6 +106,17 @@ test("combined save preserves both original files and makes no changes to either
   const after = await Promise.all(input.map(file => file.arrayBuffer()));
   assert.deepEqual(new Uint8Array(before[0]), new Uint8Array(after[0]));
   assert.deepEqual(new Uint8Array(before[1]), new Uint8Array(after[1]));
+});
+
+test("normalizes Geometry Dash GS_value and GLM_01-style structures", async () => {
+  const tree = parseSaveXml("<plist><dict><key>GS_value</key><dict><key>1</key><integer>29</integer><key>14</key><integer>13</integer></dict><key>GLM_01</key><dict><key>1</key><dict><key>k1</key><integer>1</integer><key>k2</key><string>Stereo Madness</string><key>k7</key><integer>1</integer></dict></dict></dict></plist>");
+  const normalized = normalizeSaveData(tree, "game-manager");
+  assert.equal(normalized.statValues.length, 2);
+  assert.equal(normalized.statValues[0].key, "1");
+  assert.equal(normalized.statValues[0].value, 29);
+  assert.equal(normalized.levels.length, 1);
+  assert.equal(normalized.levels[0].name, "Stereo Madness");
+  assert.equal(normalized.levels[0].id, 1);
 });
 
 test("corrupt saves fail with a safe message and sensitive fields are masked recursively", async () => {

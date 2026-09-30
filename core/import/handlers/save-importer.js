@@ -68,6 +68,8 @@ export async function importSave(files) {
   const filenames = [];
   const identityParts = [];
   let gameVersion = null;
+  let binaryVersion = null;
+  let encoding = null;
 
   for (const file of list) {
     const result = await decodeSaveFile(file);
@@ -80,6 +82,8 @@ export async function importSave(files) {
     filenames.push(file.name || "Geometry Dash save.dat");
     identityParts.push(`${slot}:${await contentHash(bytes)}`);
     gameVersion = result.gameVersion ?? gameVersion;
+    binaryVersion = result.binaryVersion ?? binaryVersion;
+    encoding = result.encoding ?? encoding;
     if (slot === "gameManager") {
       normalized.gameManager = result.normalized;
     } else {
@@ -104,7 +108,7 @@ export async function importSave(files) {
     files: filePayloads,
     decoded,
     normalized,
-    metadata: { platform: "unknown", gameVersion, importedAt: Date.now() },
+    metadata: { platform: "unknown", gameVersion, binaryVersion, encoding, importedAt: Date.now() },
     source: { filenames }
   });
 }
