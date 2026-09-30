@@ -25,7 +25,7 @@ import { hashFileContent } from "../../core/workbench/content-hash.js";
 import { normalizeTags, mergeTags } from "../../core/documents/tags.js";
 import { getWorkbenchValue, setWorkbenchValue, saveViewPreferences, listSavedSearches, saveSavedSearch, deleteSavedSearch, recordActivity, getViewPreferences } from "../../core/storage/workbench-database.js";
 import { writeZipBlob } from "../../core/textures/zip.js";
-import { normalizeViewPreference, normalizeActiveProject, normalizeRecentActivity, normalizeSavedSearches } from "../../core/startup/release-state.js";
+import { normalizeViewPreference, resolveActiveProject, normalizeRecentActivity, normalizeSavedSearches } from "../../core/startup/release-state.js";
 
 const app = document.querySelector("#app");
 const toastRegion = document.querySelector("#toast-region");
@@ -713,7 +713,7 @@ async function refresh() {
     state.projects = results[4].status === "fulfilled" && Array.isArray(results[4].value) ? results[4].value : [];
     for (let index=1;index<results.length-1;index++) if(results[index].status==="rejected") state.resourceWarnings.push(["save snapshots","texture workspaces","audio library","projects"][index-1]);
     membershipIndexCache=null;state.quickOpenIndex=null;
-    const active=normalizeActiveProject(state.projects,results[5].status==="fulfilled"?results[5].value:null);
+    const active=resolveActiveProject(state.projects,results[5].status==="fulfilled"?results[5].value:null);
     state.activeProject=active.project;state.activeProjectId=active.activeId;
     if(results[5].status==="rejected")state.resourceWarnings.push("active project preference");
     else if(active.stale)await setActiveProjectId(null).catch(()=>state.resourceWarnings.push("active project preference"));
