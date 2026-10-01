@@ -158,6 +158,9 @@ window.AccountAPI = {
   },
 };
 
-// Check session silently on page load so currentUser is populated before
-// the player opens the settings screen.
-window.AccountAPI.checkSession().catch(() => {});
+// The legacy account API is only needed by the opt-in Main Menu (?menu=1).
+// Normal GMDPlayer runtime embeds are local-first and should not probe the retired backend.
+const accountParams = new URLSearchParams(window.location.search);
+if (accountParams.get("menu") === "1") {
+  window.AccountAPI.checkSession().catch(() => {});
+}

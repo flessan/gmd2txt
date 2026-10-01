@@ -31,6 +31,7 @@ const app = document.querySelector("#app");
 const toastRegion = document.querySelector("#toast-region");
 const spritePreviewCache = new Map();
 const atlasPreviewCache = new Map();
+const textureCardPreviewCache = new Map();
 const songResolver = new SongResolver({ getAudioAsset });
 let membershipIndexCache=null;
 const state = { route: parseRoute(), booting:true, storageError:null, resourceWarnings:[], serviceWorkerStatus:"checking", installPrompt:null, installDismissed:false, onboardingDismissed:false, levels:[], saves: [], textures: [], audioAssets: [], projects: [], activeProjectId: null, activeProject: null, projectMemberQuery: "", restorePreview: null, restoreFile: null, restoreResourceKeys: new Set(), projectProgress: null, projectAbortController: null, search: "", globalQuery: "", libraryView: "grid", libraryFilter: "all", libraryLimit:100, audioLimit:100, assetLimit:100, projectLimit:100, textureLimit:100, saveLimit:100, saveLevelLimit:200, importing: false, importStatus: "", imported: [], player: null, returnTo: "#/library", saveTab: "overview", saveQuery: "", selectedSaveLevels: new Set(), showAllSensitive: false, rawView: "json", rawFile: "gameManager", activeSaveId: null, activeTexture: null, activeSheetId: null, textureQuery: "", selectedSprite: null, replacementMode: "exact", spriteLimit:200, audioQuery: "", audioFilter: "all", audioSort: "name", audioSelectedId: null, audioEditingId: null, assetQuery: "", assetFilter: "all", assetSort: "date", projectQuery: "", inspectorTab: "summary", inspectorQuery: "", inspectorSort: "count", inspectorLimit: 80, audioPreviewUrl: null, audioPreviewId: null, selections: Object.create(null), selectionContexts: Object.create(null), palette: null, paletteQuery: "", savedSearches: [], currentSavedSearch: Object.create(null), searchFilters: { library: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, audio: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, assets: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, textures: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, projects: { tags: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" } }, viewPreferences: {}, batchSummary: null, batchResults: [], cancelImport: false, ignoredImportFiles: [], undoStack:[],redoStack:[] };
@@ -278,7 +279,7 @@ function icon(name) {
 }
 function header(active) {
   return `<header class="topbar"><button class="nav-toggle" data-action="toggle-nav" aria-label="Toggle navigation" aria-expanded="false">${icon("menu")}</button>
-    <a class="brand" href="#/home"><span class="brand-mark">G</span><span>GMDPlayer</span><img class="brand-runtime-sprite" src="./play/assets/sprites/GJ_square01.png" alt="" aria-hidden="true"></a>
+    <a class="brand" href="#/home"><img class="brand-mark brand-mark-asset" src="./play/assets/sprites/GJ_square01.png" alt="" aria-hidden="true"><span>GMDPlayer</span><img class="brand-runtime-sprite" src="./play/assets/sprites/GJ_MenuBeta.png" alt="" aria-hidden="true"></a>
     <div class="topbar-tools"><label class="global-search">${icon("search")}<input id="global-search" type="search" placeholder="Search this workspace" value="${esc(state.globalQuery)}" aria-label="Search this workspace"><kbd>${navigator.platform?.toLowerCase().includes("mac")?"⌘":"Ctrl"} K</kbd></label><button class="btn primary import-top" data-action="browse">${icon("import")}<span>Import files</span></button><a class="current-project-link" href="${state.activeProject ? `#/projects/${encodeURIComponent(state.activeProject.id)}` : "#/projects"}">${state.activeProject ? `Project · ${esc(state.activeProject.name)}` : "Projects"}</a>${navigator.onLine?"":`<span class="offline-indicator" role="status">Offline · your local library is available; online content may not be.</span>`}${state.installPrompt&&!state.installDismissed?`<span class="install-affordance"><button class="btn small" data-action="install-app">Install GMDPlayer</button><button class="btn small icon-only" data-action="dismiss-install" aria-label="Dismiss install suggestion" title="Dismiss">×</button></span>`:""}<span class="privacy-label"><span class="status-dot"></span>On this device</span></div>
   </header>
   <aside class="sidebar" aria-label="Main navigation"><div class="sidebar-section"><div class="sidebar-label">Workspace</div><a href="#/home" class="side-link ${active === "home" ? "active" : ""}">${icon("home")}<span>Home</span></a><a href="#/library" class="side-link ${["library", "details", "inspect"].includes(active) ? "active" : ""}">${icon("library")}<span>Library</span><span class="side-count">${state.levels.length}</span></a><a href="#/projects" class="side-link ${active === "projects" ? "active" : ""}">${icon("library")}<span>Projects</span><span class="side-count">${state.projects.filter(project => !project.archivedAt).length}</span></a></div>
@@ -493,16 +494,59 @@ function renderAssetsWorkspace() {
   const visibleRows=rows.slice(0,state.assetLimit);getSelectionModel("assets",visibleRows.map(item=>item.id));
   app.innerHTML = `<div class="shell">${header("assets")}<main class="main-content assets-workspace"><a class="back-link" href="#/tools">← Tools</a><div class="page-heading"><div><div class="eyebrow">Local asset catalog</div><h1>Assets</h1><p>Levels, songs, and texture workspaces managed by GMDPlayer.</p></div><div class="library-actions"><button class="btn primary" data-action="browse">${icon("import")}<span>Import files</span></button>${supportsDirectorySelection()?`<button class="btn" data-action="browse-folder">Import folder</button>`:""}</div></div>${batchImportStatusMarkup()}<div class="asset-library-toolbar"><label class="search-wrap">${icon("search")}<input id="asset-search" class="search" type="search" value="${esc(state.assetQuery)}" placeholder="Search assets and linked usage"></label><label class="audio-select-filter">Category<select id="asset-filter"><option value="all">All assets</option><option value="level" ${state.assetFilter === "level" ? "selected" : ""}>Level files</option><option value="audio" ${state.assetFilter === "audio" ? "selected" : ""}>Songs</option><option value="texture" ${state.assetFilter === "texture" ? "selected" : ""}>Texture workspaces</option></select></label><label class="audio-select-filter">Sort<select id="asset-sort"><option value="date" ${state.assetSort === "date" ? "selected" : ""}>Recently imported</option><option value="name" ${state.assetSort === "name" ? "selected" : ""}>Name</option><option value="size" ${state.assetSort === "size" ? "selected" : ""}>File size</option></select></label><span class="audio-count">${rows.length} assets · showing ${visibleRows.length}</span>${selectionToolbar("assets",visibleRows.map(item=>item.id),{resourceType:"mixed"})}</div>${advancedSearchMarkup("assets")}<section class="audio-table-panel asset-table-panel"><div class="audio-table-scroll"><table class="workbench-table asset-table"><thead><tr><th>Asset</th><th>Category</th><th>Source</th><th>Size</th><th>Linked usage</th><th>Projects</th><th>Imported</th><th></th></tr></thead><tbody>${visibleRows.map(item => { const picked=state.selections.assets?.has(item.id); return `<tr class="${picked?"selection-selected":""}" data-selectable="assets" data-id="${esc(item.id)}" tabindex="0" role="option" aria-selected="${!!picked}"><td><input class="item-selection" type="checkbox" data-select-item="assets" data-id="${esc(item.id)}" aria-label="Select ${esc(item.name)}" ${picked?"checked":""}> <a class="asset-name-link" href="${item.href}"><strong>${esc(item.name)}</strong><small>${esc(item.filename)}</small></a></td><td>${item.kind === "level" ? "Level file" : item.kind === "audio" ? "Song / audio" : "Texture workspace"}</td><td>${esc(item.source)}</td><td>${item.size ? fmtBytes(item.size) : "—"}</td><td>${esc(item.usage || "—")}</td><td>${item.projects.map(project => `<a class="asset-project-link" href="#/projects/${encodeURIComponent(project.id)}">${esc(project.name)}</a>`).join(", ") || "—"}</td><td>${esc(fmtDate(item.importedAt))}</td><td>${item.kind === "audio" ? `<button class="btn small danger ghost" data-action="audio-delete" data-id="${esc(item.id)}">Remove</button>` : item.kind === "texture" ? `<button class="btn small danger ghost" data-action="asset-delete-texture" data-id="${esc(item.id)}">Remove</button>` : `<button class="btn small" data-action="details" data-id="${esc(item.id)}">Open</button>`}</td></tr>`; }).join("") || `<tr><td colspan="8" class="table-empty">No assets match this view. Import supported files to populate the catalog.</td></tr>`}</tbody></table></div>${visibleRows.length<rows.length?`<button class="btn load-more" data-action="load-more" data-scope="assets">Show next ${Math.min(100,rows.length-visibleRows.length)} assets</button>`:""}</section></main></div>`;
 }
+async function hydrateTexturePackCards() {
+  const cards = [...document.querySelectorAll(".texture-pack-card[data-texture-id]")];
+  if (!cards.length) return;
+  await Promise.all(cards.map(async card => {
+    const packId = card.dataset.textureId;
+    const target = card.querySelector(".texture-card-art");
+    if (!packId || !target) return;
+    try {
+      let previewUrl = textureCardPreviewCache.get(packId);
+      if (!previewUrl) {
+        const pack = await getTextureWorkspace(packId);
+        const sheet = Object.values(pack?.sheets || {}).find(item =>
+          item?.source?.png && Object.keys(item?.parsed?.frames || {}).length
+        );
+        if (!sheet) return;
+        const frames = Object.values(sheet.parsed.frames || {});
+        const preferred = frames.find(item =>
+          /player|cube|ship|ball|robot|wave|button|logo|icon/i.test(item.name)
+        ) || frames[0];
+        if (!preferred) return;
+        const canvas = await extractSprite(sheet.source.png, preferred, { maxDimension: 150 });
+        const png = await canvasToPngBytes(canvas);
+        canvas.close?.();
+        previewUrl = URL.createObjectURL(new Blob([png], { type: "image/png" }));
+        textureCardPreviewCache.set(packId, previewUrl);
+      }
+      if (!card.isConnected) return;
+      const img = document.createElement("img");
+      img.src = previewUrl;
+      img.alt = "";
+      img.className = "texture-card-art-image";
+      img.decoding = "async";
+      target.replaceChildren(img);
+    } catch (error) {
+      target.classList.add("texture-card-art-missing");
+      target.setAttribute("aria-label", "Texture preview unavailable");
+      console.warn("Could not prepare texture card preview", error);
+    }
+  }));
+}
+
+
 async function renderTextureWorkspace() {
   if (!state.route.id) {
     const textureRows=filterResources(state.textures.map(pack=>({...pack,kind:"texture",name:pack.name,filename:pack.sourceFiles?.map(file=>file.name).join(" "),date:pack.updatedAt||pack.createdAt,projectIds:linkedProjects("textureWorkspaces",pack.id).map(item=>item.id)})),searchDefinition("textures",state.textureQuery,"texture"));
     const visibleTextureRows=textureRows.slice(0,state.textureLimit);getSelectionModel("textures",visibleTextureRows.map(pack=>pack.id));
     const textureCards=visibleTextureRows.map(pack=>{
       const picked=state.selections.textures?.has(pack.id);
-      return `<article class="texture-pack-card ${picked ? "selection-selected" : ""}" data-selectable="textures" data-id="${esc(pack.id)}" tabindex="0" role="option" aria-selected="${!!picked}"><input class="item-selection" type="checkbox" data-select-item="textures" data-id="${esc(pack.id)}" aria-label="Select ${esc(pack.name)}" ${picked ? "checked" : ""}><div><h3>${esc(pack.name)}</h3><p>${pack.sheetCount||0} sheets · ${pack.spriteCount||0} sprites</p></div><button class="btn primary" data-action="open-texture" data-id="${esc(pack.id)}">Open workspace</button></article>`;
+      return `<article class="texture-pack-card ${picked ? "selection-selected" : ""}" data-selectable="textures" data-id="${esc(pack.id)}" data-texture-id="${esc(pack.id)}" tabindex="0" role="option" aria-selected="${!!picked}"><button class="texture-card-hitarea" data-action="open-texture" data-id="${esc(pack.id)}" aria-label="Open ${esc(pack.name)}"><span class="texture-card-art" aria-hidden="true"><span class="texture-card-art-placeholder">${icon("texture")}</span></span><span class="texture-card-copy"><span class="texture-card-kicker">${pack.sheetCount||0} sheets</span><strong>${esc(pack.name)}</strong><small>${pack.spriteCount||0} sprites · Updated ${esc(fmtDate(pack.updatedAt))}</small></span><span class="texture-card-open">Open <span aria-hidden="true">→</span></span></button><input class="item-selection texture-card-selection" type="checkbox" data-select-item="textures" data-id="${esc(pack.id)}" aria-label="Select ${esc(pack.name)}" ${picked ? "checked" : ""}></article>`;
     }).join("");
     const showMore=visibleTextureRows.length<textureRows.length?`<button class="btn load-more" data-action="load-more" data-scope="textures">Show next ${Math.min(100,textureRows.length-visibleTextureRows.length)} workspaces</button>`:"";
     app.innerHTML = `<div class="shell">${header("textures")}<main class="main-content"><a class="back-link" href="#/tools">← Tools</a><div class="page-heading"><div><div class="eyebrow">Creative workspace</div><h1>Texture workspaces</h1><p>Import PNG + XML PLIST sheets or ZIP packs. Originals stay unchanged.</p></div><button class="btn primary" data-action="browse">${icon("import")}<span>Import texture files</span></button></div>${selectionToolbar("textures",textureRows.map(pack=>pack.id),{resourceType:"textureWorkspaces"})}${advancedSearchMarkup("textures")}${textureCards?`<div class="texture-pack-list">${textureCards}${showMore}</div>`:`<div class="empty-state"><h3>${state.textures.length?"No matching texture workspaces":"No texture workspace yet"}</h3><p>Choose PNG and PLIST files or a ZIP pack to get started.</p></div>`}</main></div>`;
+    hydrateTexturePackCards();
     return;
   }
   const pack = await getTextureWorkspace(state.route.id);

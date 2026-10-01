@@ -903,3 +903,33 @@ body.texture-mode .main-content, body.texture-mode .texture-editor.main-content 
   .gd-workspace-grid, .gd-level-strip { grid-template-columns: 1fr; }
   .gd-section-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
+
+/* Geometry Dash asset-led texture workspace refresh */
+.brand-mark-asset{width:38px!important;height:38px!important;padding:3px;object-fit:contain;border-radius:9px;background:#17352d;image-rendering:pixelated}
+.brand-runtime-sprite{width:42px;height:30px;object-fit:contain;margin-left:1px;image-rendering:pixelated;filter:drop-shadow(0 2px 1px rgba(0,0,0,.14))}
+.topbar{box-shadow:0 1px 0 rgba(19,37,30,.04),0 8px 30px rgba(19,37,30,.05)}
+.side-link.active{position:relative;overflow:hidden}.side-link.active::after{content:"";position:absolute;right:7px;width:6px;height:24px;border-radius:999px;background:#c9ff35;box-shadow:0 0 0 2px rgba(35,116,94,.12)}
+.texture-pack-list{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:22px}
+.texture-pack-card{position:relative;min-width:0;padding:0;overflow:hidden;border:1px solid #d5ddd5;border-radius:14px;background:#fff;box-shadow:0 8px 26px rgba(24,46,37,.06);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+.texture-pack-card:hover,.texture-pack-card:focus-within{transform:translateY(-3px);border-color:#7eaa95;box-shadow:0 16px 34px rgba(24,46,37,.12),0 0 0 2px rgba(37,123,92,.08)}
+.texture-pack-card.selection-selected{border-color:#3b8d6e;box-shadow:0 0 0 2px rgba(59,141,110,.15),0 16px 34px rgba(24,46,37,.12)}
+.texture-card-hitarea{display:grid;grid-template-columns:102px minmax(0,1fr) auto;align-items:center;width:100%;min-height:118px;padding:10px 15px 10px 10px;border:0;background:#fff;color:inherit;text-align:left;cursor:pointer}
+.texture-card-art{position:relative;display:grid;place-items:center;width:88px;height:88px;overflow:visible;border-radius:11px;background:#123025 url("./play/assets/game-bg/game_bg_01_001-hd.png") center/cover no-repeat;box-shadow:inset 0 0 0 1px rgba(255,255,255,.13)}
+.texture-card-art::before{content:"";position:absolute;inset:10px;border:1px solid rgba(255,255,255,.14);border-radius:9px}
+.texture-card-art-image{position:relative;z-index:2;display:block;max-width:68px;max-height:68px;width:auto;height:auto;object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4));transition:transform .16s ease,filter .16s ease}
+.texture-pack-card:hover .texture-card-art-image,.texture-pack-card:focus-within .texture-card-art-image{transform:scale(1.12);filter:drop-shadow(0 0 2px rgba(201,255,53,.95)) drop-shadow(0 0 7px rgba(201,255,53,.8)) drop-shadow(0 0 15px rgba(35,116,94,.65)) drop-shadow(0 3px 0 rgba(0,0,0,.35))}
+.texture-card-art-placeholder{color:rgba(255,255,255,.78)}.texture-card-art-placeholder .ui-icon{width:28px;height:28px}
+.texture-card-copy{display:flex;min-width:0;flex-direction:column;align-items:flex-start;gap:3px;padding:0 13px}
+.texture-card-kicker{color:#6e7c74;font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase}
+.texture-card-copy strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;font-weight:650}
+.texture-card-copy small{overflow:hidden;color:#738078;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.texture-card-open{display:inline-flex;align-items:center;gap:7px;padding-left:9px;color:#25745b;font-size:12px;font-weight:700;white-space:nowrap;transition:transform .16s ease}
+.texture-pack-card:hover .texture-card-open,.texture-pack-card:focus-within .texture-card-open{transform:translateX(3px)}
+.texture-card-selection{position:absolute!important;top:11px;right:10px;z-index:4;margin:0!important}
+.texture-title{padding:18px 20px 19px;margin-bottom:20px;border:1px solid #d4ddd5;border-radius:15px;background:#123025 url("./play/assets/game-bg/game_bg_01_001-hd.png") center/cover no-repeat;color:#fff;box-shadow:0 14px 38px rgba(14,41,30,.12)}
+.texture-title .eyebrow,.texture-title h1,.texture-title .section-meta{color:#fff}.texture-title h1{text-shadow:0 3px 0 rgba(0,0,0,.2)}.texture-title .section-meta{opacity:.78}
+.texture-source-meta{padding:9px 12px;border:1px solid #d9e0da;border-radius:9px;background:#fff}
+.texture-sheet-row{transition:background .14s ease,transform .14s ease,box-shadow .14s ease}.texture-sheet-row:hover{transform:translateX(2px);box-shadow:0 4px 14px rgba(20,53,40,.07)}
+.texture-sprite:hover{position:relative;z-index:1;border-color:#87ad99;background:#fff;box-shadow:0 0 0 1px rgba(135,173,153,.15),0 7px 20px rgba(24,46,37,.09)}
+.texture-sprite.selected{border-color:#39856a;box-shadow:0 0 0 2px rgba(57,133,106,.12),0 7px 20px rgba(24,46,37,.08)}
+@media(max-width:720px){.texture-pack-list{grid-template-columns:1fr}.texture-card-hitarea{grid-template-columns:82px minmax(0,1fr)}.texture-card-art{width:72px;height:72px}.texture-card-open{display:none}.brand-runtime-sprite{display:none}}
