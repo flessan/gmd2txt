@@ -393,6 +393,10 @@ class GameScene extends Phaser.Scene {
     });
   }
   create() {
+    this._runtimeOnly = window.gmdplayerRuntimeMode !== false;
+    this._runtimeEmbedded = !!window.gmdplayerEmbedded;
+    this._runtimeStandalone = !!window.gmdplayerStandalone;
+
     this._bgSpeedX = 0.1;
     this._bgSpeedY = 0.1;
     this._menuCameraX = -centerX;
@@ -3726,6 +3730,10 @@ this._menuUpdateLogBtn = this.add.image(screenWidth - 30 - 50, 33, "GJ_WebSheet"
     this._pauseBtn.on("pointerdown", () => this._pauseGame());
     this._escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this._escKey.on("down", () => {
+      if (this._runtimeOnly) {
+        this._exitRuntime();
+        return;
+      }
       if (this._levelSelectOverlay) {
         this._closeLevelSelect();
         return;
@@ -3942,20 +3950,25 @@ this._menuUpdateLogBtn = this.add.image(screenWidth - 30 - 50, 33, "GJ_WebSheet"
     const menuMusicEnabled = localStorage.getItem("menuMusicEnabled");
     const shouldPlayMenuMusic = menuMusicEnabled === null ? true : menuMusicEnabled === "true";
     
-    if (window.isEditor) {
+    if (this._runtimeOnly) {
+      this._audio.stopMusic();
+    } else if (window.isEditor) {
       this._audio.stopMusic();
     } else if (!this._audio.isplaying() && shouldPlayMenuMusic) {
       this._audio.startMenuMusic();
     } else if (this._audio.isplaying() && !shouldPlayMenuMusic) {
       this._audio.stopMusic();
     }
-    if (!window.updateLogShown) {
+    if (!this._runtimeOnly && !window.updateLogShown) {
       this._buildUpdateLogPopup();
       window.updateLogShown = true;
     }
-    if (window.levelID) {
+    if (!this._runtimeOnly && window.levelID) {
         this._openSearchMenu();
     }
+    if (this._runtimeOnly) {
+      this._enterRuntimeOnly();
+    } else {
     if (this.game.registry.get("autoStartGame")) {
       if (!window.settingsMap) {
         const cachedLevelText = this.cache.text.get(window.currentlevel[2]) ||
@@ -4023,7 +4036,202 @@ this._menuUpdateLogBtn = this.add.image(screenWidth - 30 - 50, 33, "GJ_WebSheet"
       window._mainLevelReturnToSelect = false;
       this._openLevelSelect();
     }
+  }    }
+
+  _destroyRuntimeMenu() {
+    const fields = [
+      "_logo", "_robLogo", "_socialIcons", "_copyrightText", "_tryMeImg",
+      "_downloadBtns", "_menuFsBtn", "_menuInfoBtn", "_menuUpdateLogBtn",
+      "_menuSettingsBtn", "_menuStatsBtn", "_menuAchievementsBtn",
+      "_menuNewgroundsBtn", "_menuGlitter", "_playBtn", "_creatorBtn",
+      "_iconBtn", "_chrSelDecor", "_lvlEditDecor", "_levelLabel",
+      "_leftBtn", "_rightBtn", "_infoPopup", "_updateLogPopup",
+      "_settingsPopup", "_newgroundsPopup", "_featuredInfoPopup"
+    ];
+
+    const destroy = value => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach(destroy);
+        return;
+      }
+      try { this.tweens.killTweensOf(value); } catch (_) {}
+      try { if (typeof value.destroy === "function") value.destroy(); } catch (_) {}
+    };
+
+    for (const field of fields) {
+      const value = this[field];
+      if (!value) continue;
+      destroy(value);
+      this[field] = Array.isArray(value) ? [] : null;
+    }
   }
+
+  _showRuntimeStatus(title, detail = "") {
+    this._clearRuntimeStatus();
+
+    const panelW = Math.min(760, screenWidth - 80);
+    const panelH = 190;
+    const container = this.add.container(screenWidth / 2, screenHeight / 2)
+      .setScrollFactor(0)
+      .setDepth(900);
+
+    const panel = this._drawScale9
+      ? this._drawScale9(0, 0, panelW, panelH, "GJ_square01", 42, 0xffffff, 0.96)
+      : this.add.rectangle(0, 0, panelW, panelH, 0x111111, 0.96);
+
+    const titleText = this.add.bitmapText(0, -42, "bigFont", String(title || ""), 42)
+      .setOrigin(0.5);
+    if (titleText.width > panelW - 50) {
+      titleText.setScale((panelW - 50) / titleText.width);
+    }
+
+    const detailText = this.add.text(0, 28, String(detail || ""), {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "18px",
+      color: "#ffffff",
+      align: "center",
+      wordWrap: { width: panelW - 70 }
+    }).setOrigin(0.5);
+
+    container.add([panel, titleText, detailText]);
+    this._runtimeStatusContainer = container;
+  }
+
+  _clearRuntimeStatus() {
+    if (this._runtimeStatusContainer) {
+      this._runtimeStatusContainer.destroy();
+      this._runtimeStatusContainer = null;
+    }
+  }
+
+  _exitRuntime() {
+    try { this._audio?.stopMusic?.(); } catch (_) {}
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        channel: "gmdplayer-runtime",
+        type: "exit-request"
+      }, "*");
+      return;
+    }
+
+    const target = new URL("../", window.location.href);
+    window.location.replace(target.href);
+  }
+
+  _enterRuntimeOnly() {
+    this._destroyRuntimeMenu();
+    this._runtimeWaiting = false;
+
+    const levelId = window.currentlevel?.[2] || window._onlineLevelId || null;
+    const getSource = () => {
+      const cached = levelId ? this.cache.text.get(levelId) : null;
+      if (cached) return cached;
+      if (window._onlineLevelString && levelId === window._onlineLevelId) {
+        return window._onlineLevelString;
+      }
+      return null;
+    };
+
+    const showWaiting = (title, detail) => {
+      this._runtimeWaiting = true;
+      this.input.enabled = false;
+      this._showRuntimeStatus(title, detail);
+    };
+
+    const startRuntime = () => {
+      const source = getSource();
+      if (!source) return false;
+
+      try {
+        if (!window.settingsMap) {
+          this._level.loadLevel(source);
+        }
+        if (!window.settingsMap) {
+          throw new Error("The level runtime settings could not be initialized.");
+        }
+
+        this.game.registry.remove("autoStartGame");
+        this._clearRuntimeStatus();
+        this.input.enabled = true;
+        this._instantLevelStart = true;
+        this._startGame();
+        return true;
+      } catch (error) {
+        showWaiting(
+          "Player could not start",
+          error?.message || "The level runtime failed to initialize."
+        );
+        return false;
+      }
+    };
+
+    if (this.game.registry.get("autoStartGame")) {
+      if (!startRuntime()) {
+        showWaiting(
+          "Waiting for level",
+          this._runtimeEmbedded
+            ? "GMDPlayer is ready. Send a level to the runtime to begin."
+            : "No playable level source was found."
+        );
+      }
+      return;
+    }
+
+    if (this._runtimeStandalone) {
+      if (startRuntime()) return;
+
+      const runtimeLevelId = window.currentlevel?.[2];
+      const runtimeMatch = /^level_(\d+)$/.exec(String(runtimeLevelId || ""));
+      if (!runtimeMatch) {
+        showWaiting(
+          "No level selected",
+          "Use ?level=level_1 or choose an official Geometry Dash level."
+        );
+        return;
+      }
+
+      this.input.enabled = false;
+      this._showRuntimeStatus(
+        "Loading level",
+        window.currentlevel?.[1] || runtimeLevelId
+      );
+
+      this.load.text(runtimeLevelId, "assets/levels/" + runtimeMatch[1] + ".txt");
+      this.load.once("complete", () => {
+        const loaded = this.cache.text.get(runtimeLevelId);
+        if (!loaded) {
+          showWaiting("Level unavailable", "The local level asset could not be loaded.");
+          return;
+        }
+
+        try {
+          this._level.loadLevel(loaded);
+          if (!window.settingsMap) {
+            throw new Error("The level settings are incomplete.");
+          }
+          this.game.registry.remove("autoStartGame");
+          this._clearRuntimeStatus();
+          this.input.enabled = true;
+          this._instantLevelStart = true;
+          this._startGame();
+        } catch (error) {
+          showWaiting(
+            "Player could not start",
+            error?.message || "The level failed to initialize."
+          );
+        }
+      });
+      this.load.start();
+    } else {
+      showWaiting(
+        "Waiting for level",
+        "GMDPlayer is ready. Send a level to the runtime to begin."
+      );
+    }
+  }
+
   _parseLevelColors(levelId) {
     const LEVEL_COLORS = [
       0x0100f5,0xf902f8,0xf90285,0xfa0102,
@@ -4949,6 +5157,10 @@ _buildPauseOverlay() {
         { frame: this._practicedMode.practiceMode ? "GJ_normalBtn_001.png" : "GJ_practiceBtn_001.png", atlas: "GJ_GameSheet03", action: null },
         { frame: "GJ_playBtn2_001.png", atlas: "GJ_WebSheet", action: () => this._resumeGame() },
         { frame: "GJ_menuBtn_001.png", atlas: "GJ_WebSheet", action: () => {
+            if (this._runtimeOnly) {
+              this._exitRuntime();
+              return;
+            }
             this._audio.playEffect("quitSound_01");
             this._queueGameplayLevelViewReturn();
             if (this._isMainLevelForCoinDisplay()) {

@@ -66,6 +66,11 @@ window.fetchGdAudio = async function (songUrl, options = {}) {
   }
   throw lastError || new Error("No audio endpoint available");
 };
+const urlParams = new URLSearchParams(window.location.search);
+window.gmdplayerEmbedded = urlParams.get("gmdplayer") === "1";
+window.gmdplayerRuntimeMode = urlParams.get("menu") !== "1";
+window.gmdplayerStandalone = !window.gmdplayerEmbedded;
+
 window.currentlevel = [
 	"stereo_madness", // internal level name
 	"Stereo Madness", // proper level name
@@ -75,11 +80,6 @@ window.currentlevel = [
 window.orbClickScale = 2.0;
 window.orbClickShrinkTime = 250;
 window.orbParticleSize = 3.5;
-
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.has('id')) {
-  window.levelID = urlParams.get('id');
-}
 
 // -------------------------------
 

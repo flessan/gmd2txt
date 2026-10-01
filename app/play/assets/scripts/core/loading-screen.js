@@ -317,6 +317,14 @@ class BootScene extends Phaser.Scene {
         this.load.image("game_bg_" + index, "assets/game-bg/game_bg_" + i + "_001-hd.png");
       }
 
+      if (window.gmdplayerStandalone && window.gmdplayerRuntimeMode) {
+        const runtimeLevelId = window.currentlevel?.[2];
+        const runtimeMatch = /^level_(\d+)$/.exec(String(runtimeLevelId || ""));
+        if (runtimeMatch && !this.cache.text.has(runtimeLevelId)) {
+          this.load.text(runtimeLevelId, "assets/levels/" + runtimeMatch[1] + ".txt");
+        }
+      }
+
       this.load.audio("menu_music", "assets/music/menuLoop.mp3");
       this.load.audio("StayInsideMe", "assets/music/StayInsideMe.mp3");
 
