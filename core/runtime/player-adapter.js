@@ -1,4 +1,4 @@
-export const PLAYER_RUNTIME_URL = new URL("../../app/play/index.html?gmdplayer=1", import.meta.url).href;
+export const PLAYER_RUNTIME_URL = new URL("/app/play/index.html?gmdplayer=1", globalThis.location.href).href;
 
 function getRuntime(frame) {
   const win = frame?.contentWindow;
