@@ -953,3 +953,261 @@ body.texture-mode .main-content, body.texture-mode .texture-editor.main-content 
 .texture-sprite:hover .texture-sprite-thumb,.texture-sprite:focus-visible .texture-sprite-thumb{box-shadow:0 0 0 1px rgba(135,173,153,.26),0 0 13px rgba(43,130,98,.22)}
 @media(max-width:1050px){.gd-home-hero{padding:42px 38px 82px}}
 @media(max-width:700px){.gd-home-hero{padding:30px 23px 76px}.gd-home-hero::after{height:64px;background-size:auto 64px}.texture-sprite{grid-template-columns:30px minmax(0,1fr)}.texture-sprite-thumb{width:28px;height:38px}.texture-sprite-thumb-image{max-width:24px;max-height:32px}}
+
+/* Geometry Dash workspace skin */
+body.texture-mode { background: #06182b; color: #fff; }
+body.texture-mode .topbar { display: none; }
+body.texture-mode .sidebar { display: none; }
+body.texture-mode .main-content { width: 100%; max-width: none; margin: 0; padding: 0; }
+body.texture-mode .shell { min-height: 100vh; }
+
+body.texture-mode .texture-editor {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 28px 34px 100px;
+  background: #06182b url("./play/assets/game-bg/game_bg_01_001-hd.png") center/cover fixed no-repeat;
+}
+body.texture-mode .texture-editor::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(3,12,25,.48);
+}
+body.texture-mode .texture-editor::after {
+  content: "";
+  position: fixed;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62px;
+  pointer-events: none;
+  background: url("./play/assets/game-ground/groundSquare_01_001.png") left bottom/auto 62px repeat-x;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 -2px 0 rgba(255,255,255,.08));
+}
+body.texture-mode .texture-editor > * { position: relative; z-index: 2; }
+
+body.texture-mode .texture-editor > .back-link {
+  display: inline-flex;
+  margin: 0 0 13px;
+  padding: 9px 14px;
+  border: 2px solid rgba(255,255,255,.62);
+  border-radius: 8px;
+  background: #12324d;
+  color: #e6f2fb;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.28), 0 3px 0 rgba(0,0,0,.25);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+body.texture-mode .texture-editor > .back-link:hover { color: #c9ff35; border-color: #c9ff35; }
+
+body.texture-mode .texture-title {
+  position: relative;
+  min-height: 145px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  overflow: hidden;
+  margin: 0 0 16px;
+  padding: 24px 30px;
+  border: 3px solid rgba(255,255,255,.78);
+  border-radius: 15px;
+  background: #071a2c url("./play/assets/game-bg/game_bg_02_001-hd.png") center/cover no-repeat;
+  color: #fff;
+  box-shadow: 0 7px 0 rgba(0,0,0,.3), 0 20px 42px rgba(0,0,0,.2);
+}
+body.texture-mode .texture-title::after {
+  content: "";
+  position: absolute;
+  right: 26px;
+  top: 50%;
+  width: 205px;
+  height: 105px;
+  transform: translateY(-50%);
+  background: url("./play/assets/sprites/GJ_MenuBeta.png") center/contain no-repeat;
+  image-rendering: auto;
+  filter: drop-shadow(0 6px 0 rgba(0,0,0,.3));
+  pointer-events: none;
+}
+body.texture-mode .texture-title > div:first-child { position: relative; z-index: 2; max-width: 72%; }
+body.texture-mode .texture-title h1 { margin: 4px 0 5px; color: #fff; font-size: clamp(28px,4vw,46px); font-weight: 900; line-height: 1.02; letter-spacing: -1.6px; text-shadow: 0 4px 0 rgba(0,0,0,.32); }
+body.texture-mode .texture-title .eyebrow { color: #c9ff35; font-weight: 900; letter-spacing: .1em; }
+body.texture-mode .texture-title .section-meta { color: #d4e7f5; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+
+body.texture-mode .texture-actions { position: relative; z-index: 3; align-self: flex-end; }
+body.texture-mode .texture-actions .btn {
+  min-height: 37px; border: 2px solid #7c96ab; border-radius: 7px;
+  background: #12314b; color: #eef7fd; font-size: 9px; font-weight: 900;
+  letter-spacing: .05em; text-transform: uppercase;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), 0 2px 0 rgba(0,0,0,.2);
+}
+body.texture-mode .texture-actions .btn:hover { border-color: #c9ff35; color: #c9ff35; background: #173d57; }
+body.texture-mode .texture-actions .btn.primary {
+  border-color: #c9ff35; background: #2b8b35; color: #fff;
+}
+
+body.texture-mode .texture-layout {
+  position: relative;
+  z-index: 2;
+  grid-template-columns: 250px minmax(0,1fr);
+  gap: 14px;
+  min-height: calc(100vh - 245px);
+}
+body.texture-mode .texture-browser,
+body.texture-mode .texture-atlas-stage,
+body.texture-mode .texture-inspector {
+  border: 3px solid rgba(255,255,255,.72);
+  border-radius: 13px;
+  background: #0b2136 url("./play/assets/game-bg/game_bg_03_001-hd.png") center/cover no-repeat;
+  box-shadow: 0 6px 0 rgba(0,0,0,.3), 0 16px 32px rgba(0,0,0,.18);
+}
+body.texture-mode .texture-browser { min-height: 0; max-height: calc(100vh - 245px); }
+body.texture-mode .texture-detail { min-width: 0; }
+body.texture-mode .texture-workspace-columns { grid-template-columns: minmax(0,1fr) 310px; gap: 14px; }
+body.texture-mode .texture-atlas-stage { min-height: 0; }
+body.texture-mode .atlas-stage-heading,
+body.texture-mode .texture-game-stage-heading {
+  padding: 13px 16px 10px;
+  border-bottom: 2px solid rgba(255,255,255,.13);
+  background: #081a2c;
+  color: #fff;
+}
+body.texture-mode .atlas-stage-heading h2 { color:#fff; font-size:17px; font-weight:900; }
+body.texture-mode .atlas-stage-heading > span { color:#9bb1c2; font-size:9px; font-weight:900; }
+
+body.texture-mode .atlas-viewport {
+  position: relative;
+  min-height: calc(100vh - 360px);
+  background: #051a2e url("./play/assets/game-bg/game_bg_04_001-hd.png") center/cover no-repeat;
+  padding: 24px;
+}
+body.texture-mode .atlas-viewport::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.13);
+  pointer-events: none;
+}
+body.texture-mode .atlas-viewport canvas {
+  position: relative;
+  z-index: 2;
+  max-width: 100%;
+  max-height: calc(100vh - 405px);
+  image-rendering: pixelated;
+  border: 2px solid rgba(255,255,255,.32);
+  box-shadow: 0 7px 0 rgba(0,0,0,.32);
+}
+body.texture-mode .canvas-caption,
+body.texture-mode .texture-footnote {
+  color: #9ab0c0;
+  background: #071827;
+  border-color: rgba(255,255,255,.1);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+body.texture-mode .texture-inspector {
+  overflow: hidden;
+  background: #0b2136 url("./play/assets/game-bg/game_bg_05_001-hd.png") center/cover no-repeat;
+}
+body.texture-mode .inspector-heading { background:#081a2c; border-color:rgba(255,255,255,.12); }
+body.texture-mode .inspector-heading .eyebrow { color:#c9ff35; font-weight:900; letter-spacing:.1em; }
+body.texture-mode .inspector-heading h2 { color:#fff; font-size:17px; font-weight:900; text-shadow:0 2px 0 rgba(0,0,0,.3); }
+body.texture-mode .inspector-heading p { color:#9db4c5; font-size:9px; font-weight:800; }
+body.texture-mode .sprite-preview-panel {
+  min-height: 170px;
+  background: #071827 url("./play/assets/game-bg/game_bg_06_001-hd.png") center/cover no-repeat;
+  border-color: rgba(255,255,255,.12);
+}
+body.texture-mode .sprite-preview-panel canvas { background:transparent; image-rendering:pixelated; }
+body.texture-mode .inspector-section { border-color:rgba(255,255,255,.11); background:rgba(4,17,29,.35); }
+body.texture-mode .inspector-section h3 { color:#fff; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+body.texture-mode .texture-metadata span { color:#89a3b6; font-size:8px; text-transform:uppercase; letter-spacing:.06em; }
+body.texture-mode .texture-metadata strong { color:#eef7fd; font-size:11px; font-weight:800; }
+body.texture-mode .control-description { color:#9cb2c1; font-size:9px; }
+
+body.texture-mode .full-button,
+body.texture-mode .texture-actions .btn {
+  border:2px solid #718ba0;
+  background:#12314b;
+  color:#fff;
+  border-radius:7px;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.24),0 2px 0 rgba(0,0,0,.18);
+}
+body.texture-mode .full-button:hover { border-color:#c9ff35; color:#c9ff35; background:#17405e; }
+body.texture-mode .full-button.primary { border-color:#c9ff35; background:#2c8e37; color:#fff; }
+
+body.texture-mode .texture-sheet-row {
+  min-height:50px;
+  border:2px solid transparent;
+  border-radius:8px;
+  background:#102a43;
+  color:#fff;
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,.22);
+}
+body.texture-mode .texture-sheet-row:hover { background:#173b58; }
+body.texture-mode .texture-sheet-row.selected {
+  border-color:#c9ff35;
+  background:#1a4833;
+  box-shadow:0 0 0 2px rgba(201,255,53,.12),inset 0 -3px 0 rgba(0,0,0,.2);
+}
+body.texture-mode .texture-sprite {
+  background:#092035;
+  border-color:transparent;
+  color:#fff;
+}
+body.texture-mode .texture-sprite:hover {
+  border-color:#86aabe;
+  background:#12324d;
+  box-shadow:0 0 0 2px rgba(134,170,190,.12),0 4px 0 rgba(0,0,0,.22);
+}
+body.texture-mode .texture-sprite.selected {
+  border-color:#c9ff35;
+  background:#1a4833;
+  box-shadow:0 0 0 2px rgba(201,255,53,.13),0 4px 0 rgba(0,0,0,.2);
+}
+body.texture-mode .texture-sprite span { color:#fff; }
+body.texture-mode .texture-sprite small { color:#8ea6b8; }
+
+.atlas-hover-frame {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border: 3px solid #c9ff35;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgba(3,12,24,.75), 0 0 7px rgba(201,255,53,.98), 0 0 19px rgba(201,255,53,.62), inset 0 0 8px rgba(201,255,53,.18);
+}
+.atlas-hover-frame.selected {
+  border-color:#fff36c;
+  box-shadow:0 0 0 2px rgba(3,12,24,.8),0 0 9px rgba(255,243,108,.98),0 0 25px rgba(201,255,53,.7),inset 0 0 10px rgba(201,255,53,.2);
+}
+
+@media(max-width:1180px) {
+  body.texture-mode .texture-layout { grid-template-columns: 230px minmax(0,1fr); }
+  body.texture-mode .texture-workspace-columns { grid-template-columns: minmax(0,1fr) 280px; }
+  body.texture-mode .texture-title::after { right:160px; width:140px; opacity:.65; }
+}
+@media(max-width:780px) {
+  body.texture-mode .texture-editor { padding:15px 10px 85px; }
+  body.texture-mode .texture-title { min-height:155px; padding:20px; }
+  body.texture-mode .texture-title > div:first-child { max-width:100%; }
+  body.texture-mode .texture-title::after { width:100px; right:8px; top:auto; bottom:3px; transform:none; opacity:.58; }
+  body.texture-mode .texture-actions { display:none; }
+  body.texture-mode .texture-layout { grid-template-columns:1fr; }
+  body.texture-mode .texture-browser { max-height:280px; }
+  body.texture-mode .texture-workspace-columns { grid-template-columns:1fr; }
+  body.texture-mode .atlas-viewport { min-height:420px; }
+  body.texture-mode .texture-inspector { order:2; }
+}
