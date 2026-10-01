@@ -1,4 +1,11 @@
-export const PLAYER_RUNTIME_URL = new URL("/app/play/index.html?gmdplayer=1", globalThis.location.href).href;
+/**
+ * Resolved from this module's own URL, so the runtime keeps working when the
+ * app is served from a sub-path. Importing the module never needs a browser.
+ */
+export function playerRuntimeUrl() {
+  return new URL("../../app/play/index.html?gmdplayer=1", import.meta.url).href;
+}
+export const PLAYER_RUNTIME_URL = playerRuntimeUrl();
 
 function getRuntime(frame) {
   const win = frame?.contentWindow;
@@ -195,6 +202,9 @@ export class PlayerAdapter {
       }
 
       const afterLoad = await new Promise((resolve, reject) => {
+        // Callers that only want the level handed to the runtime can skip the
+        // play-mode handshake and show the preview immediately.
+        if (options.allowUnconfirmedStart) return resolve(getRuntime(frame) || null);
         const startedAt = Date.now();
         const check = () => {
           const current = getRuntime(frame);
@@ -215,9 +225,9 @@ export class PlayerAdapter {
         check();
       });
 
-      this._runtime = afterLoad;
+      this._runtime = afterLoad || this._runtime;
 
-      const started = await new Promise(resolve => {
+      const started = options.allowUnconfirmedStart ? true : await new Promise(resolve => {
         const startedAt = Date.now();
         const check = () => {
           const current = getRuntime(frame);

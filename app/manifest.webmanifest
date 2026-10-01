@@ -1,18 +1,18 @@
 {
   "id": "./",
-  "name": "GMDPlayer — Geometry Dash workstation",
-  "short_name": "GMDPlayer",
-  "description": "A local-first workstation for Geometry Dash files.",
-  "start_url": "./#/home",
+  "name": "gmd2txt — Geometry Dash level file converter",
+  "short_name": "gmd2txt",
+  "description": "Convert Geometry Dash levels both ways: .gmd to .txt level string and back. Private, offline, and free.",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#f4f3ee",
-  "theme_color": "#f4f3ee",
+  "background_color": "#f1f7f3",
+  "theme_color": "#0f7a4d",
   "categories": ["productivity", "utilities"],
   "icons": [
-    { "src": "./assets/icons/gmdplayer-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./assets/icons/gmdplayer-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

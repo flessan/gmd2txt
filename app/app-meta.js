@@ -1,4 +1,9 @@
 /* Single release identifier shared by the shell and service worker. */
 (function (scope) {
-  scope.GMDPLAYER_META = Object.freeze({ name: "GMDPlayer", version: "1.0.0", cacheRevision: "4" });
+  scope.GMDPLAYER_META = Object.freeze({
+    name: "gmd2txt",
+    product: "gmd2txt — Geometry Dash level file converter",
+    version: "2.0.0",
+    cacheRevision: "6"
+  });
 })(typeof self !== "undefined" ? self : globalThis);

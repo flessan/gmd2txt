@@ -61,6 +61,7 @@ test("search remains responsive over a synthetic 5,000-record library", () => {
 test("PWA manifest icons, service worker shell URLs, and player adapter target exist", async () => {
   const manifest=JSON.parse(await readFile(path.join(root,"app/manifest.webmanifest"),"utf8"));
   assert.equal(manifest.display,"standalone");
+  assert.equal(manifest.start_url,"./", "the converter is the installed app, not the advanced workshop");
   for(const icon of manifest.icons){const file=path.join(root,"app",icon.src.replace(/^\.\//,""));assert.ok(existsSync(file),`missing ${icon.src}`);const bytes=await readFile(file);assert.equal(bytes.subarray(0,8).toString("hex"),"89504e470d0a1a0a");}
   const sw=await readFile(path.join(root,"sw.js"),"utf8");
   assert.match(sw,/addAll\(SHELL_ASSETS/);assert.doesNotMatch(sw,/skipWaiting/);assert.match(sw,/clients\.claim/);assert.match(sw,/request\.mode === "navigate"/);
@@ -68,4 +69,23 @@ test("PWA manifest icons, service worker shell URLs, and player adapter target e
   for(const [,url] of section.matchAll(/"([^"]+)"/g))assert.ok(existsSync(path.resolve(root,"app",url)),`missing cached resource ${url}`);
   const player=new URL(PLAYER_RUNTIME_URL);
   assert.ok(player.pathname.endsWith("/app/play/index.html"),`unexpected player URL ${player.href}`);
+});
+
+test("the converter entry points exist and the old routes still land somewhere useful", async () => {
+  // The single-job converter is the app root: index.html + main.js + its stylesheet,
+  // and the flow reads only from the shared core (no duplicated string handling).
+  for (const file of ["app/index.html","app/main.js","app/assets/gmd2txt.css","app/workbench/index.html","app/workbench/main.js","core/convert/level-file.js"]) {
+    assert.ok(existsSync(path.join(root,file)),`missing ${file}`);
+  }
+  const shell=await readFile(path.join(root,"app/index.html"),"utf8");
+  assert.match(shell,/type="module" src="\.\/main\.js"/);
+  assert.match(shell,/id="dropzone"/);
+  assert.match(shell,/id="result-list"/);
+  const main=await readFile(path.join(root,"app/main.js"),"utf8");
+  assert.match(main,/from "\.\.\/core\/convert\/level-file\.js"/, "the UI must use the shared conversion core");
+  const redirect=await readFile(path.join(root,"app/converter/index.html"),"utf8");
+  assert.match(redirect,/location\.replace\("\.\.\/"\)/);
+  const workbench=await readFile(path.join(root,"app/workbench/index.html"),"utf8");
+  assert.match(workbench,/href="\.\.\/"/, "the workshop links back to the converter");
+  for (const [,src] of shell.matchAll(/src="(\.\/[^"]+)"/g)) assert.ok(existsSync(path.resolve(root,"app",src)),`missing ${src}`);
 });
