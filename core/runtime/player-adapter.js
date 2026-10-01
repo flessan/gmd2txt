@@ -88,7 +88,7 @@ export class PlayerAdapter {
     try {
       const runtime = await waitForRuntime(frame);
       this._runtime = runtime;
-      const { win, game, scene } = runtime;
+      const { win, game } = runtime;
       win.isEditor = false;
       win.levelID = null;
       const { songKey, songAuthor } = resolveSong(win, levelDocument);
@@ -108,38 +108,114 @@ export class PlayerAdapter {
         }
       }
 
-      win.currentlevel = [songKey, levelDocument.metadata?.name || "Imported level", levelDocument.id, ["GMDPlayer", songAuthor]];
-      win._onlineLevelName = win.currentlevel[1];
-      win._onlineLevelId = levelDocument.id;
-      win._onlineLevelString = levelDocument.content.raw;
-      win._onlineSongBuffer = localSongBuffer;
-      win._onlineSongKey = localSongBuffer ? songKey : null;
-      win._onlineSongOffset = 0;
-      win._gmdplayerLocalSongKey = localSongBuffer ? songKey : null;
-      win._onlineSongTitle = localSongBuffer ? (options.localAudio.displayName || "Local song") : null;
-      win._onlineSongArtist = localSongBuffer ? "Local file" : null;
+      const runtimeOrigin = new URL(PLAYER_RUNTIME_URL).origin;
+      const loadMessage = {
+        channel: "gmdplayer-runtime",
+        type: "load-level",
+        document: levelDocument,
+        localAudio: this._audioObjectUrl
+          ? {
+              url: this._audioObjectUrl,
+              displayName: options.localAudio?.displayName || "Local song"
+            }
+          : null
+      };
 
-      try { game.cache.text.entries.set(levelDocument.id, levelDocument.content.raw); } catch (_) {}
-      game.registry.set("autoStartGame", true);
-
-      const restartScene = game.scene.getScene("GameScene");
-      const created = new Promise(resolve => {
+      const waitForLevelLoad = new Promise((resolve, reject) => {
         let settled = false;
-        const finish = () => { if (settled) return; settled = true; resolve(); };
-        const timer = setTimeout(finish, 5000);
-        restartScene.events?.once?.("create", () => { clearTimeout(timer); finish(); });
-      });
-      restartScene.scene.restart();
-      await created;
+        let timer = null;
+        const finish = (callback, value) => {
+          if (settled) return;
+          settled = true;
+          if (timer) clearTimeout(timer);
+          window.removeEventListener("message", onMessage);
+          callback(value);
+        };
+        const onMessage = event => {
+          if (
+            event.source !== frame.contentWindow ||
+            event.origin !== runtimeOrigin ||
+            event.data?.channel !== "gmdplayer-runtime"
+          ) return;
 
-      const afterRestart = getRuntime(frame);
-      if (!afterRestart) throw new Error("The Geometry Dash scene disappeared while loading the level.");
-      this._runtime = afterRestart;
-      const targetScene = afterRestart.scene;
-      if (targetScene._menuActive && typeof targetScene._startGame === "function" && win.settingsMap) {
-        targetScene._instantLevelStart = true;
-        targetScene._startGame();
+          if (
+            event.data.type === "level-loaded" &&
+            String(event.data.id) === String(levelDocument.id)
+          ) {
+            finish(resolve, true);
+          } else if (event.data.type === "error") {
+            finish(reject, new Error(
+              event.data.message || "The Geometry Dash runtime could not load this level."
+            ));
+          }
+        };
+
+        timer = setTimeout(() => {
+          finish(reject, new Error(
+            "The Geometry Dash runtime did not acknowledge the level load."
+          ));
+        }, 15000);
+
+        window.addEventListener("message", onMessage);
+        frame.contentWindow.postMessage(loadMessage, runtimeOrigin);
+      });
+
+      try {
+        await waitForLevelLoad;
+      } catch (bridgeError) {
+        const direct = getRuntime(frame);
+        if (!direct) throw bridgeError;
+
+        const directWin = direct.win;
+        const directGame = direct.game;
+        directWin.isEditor = false;
+        directWin.levelID = null;
+        directWin.currentlevel = [
+          songKey,
+          levelDocument.metadata?.name || "Imported level",
+          levelDocument.id,
+          ["GMDPlayer", songAuthor]
+        ];
+        directWin._onlineLevelName = directWin.currentlevel[1];
+        directWin._onlineLevelId = levelDocument.id;
+        directWin._onlineLevelString = levelDocument.content.raw;
+        directWin._onlineSongBuffer = localSongBuffer;
+        directWin._onlineSongKey = localSongBuffer ? songKey : null;
+        directWin._onlineSongOffset = 0;
+        directWin._gmdplayerLocalSongKey = localSongBuffer ? songKey : null;
+        directWin._onlineSongTitle = localSongBuffer
+          ? (options.localAudio.displayName || "Local song")
+          : null;
+        directWin._onlineSongArtist = localSongBuffer ? "Local file" : null;
+        try {
+          directGame.cache.text.entries.set(levelDocument.id, levelDocument.content.raw);
+        } catch (_) {}
+        directGame.registry.set("autoStartGame", true);
+        direct.scene.scene.restart();
       }
+
+      const afterLoad = await new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+        const check = () => {
+          const current = getRuntime(frame);
+          if (
+            current &&
+            String(current.win.currentlevel?.[2]) === String(levelDocument.id) &&
+            current.scene._menuActive === false
+          ) {
+            return resolve(current);
+          }
+          if (Date.now() - startedAt >= 15000) {
+            return reject(new Error(
+              "The level loaded, but the Geometry Dash runtime did not enter play mode."
+            ));
+          }
+          setTimeout(check, 100);
+        };
+        check();
+      });
+
+      this._runtime = afterLoad;
 
       const started = await new Promise(resolve => {
         const startedAt = Date.now();
