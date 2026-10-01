@@ -79,21 +79,6 @@ self.addEventListener("fetch", event => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (!isAppAsset(url)) return;
-  if (request.mode === "navigate" && isAppNavigation(url)) {
-    event.respondWith((async () => {
-      try {
-        const response = await fetch(request);
-        if (response.ok && url.pathname === new URL("./", APP_ROOT).pathname) (await caches.open(SHELL_CACHE)).put(resolveAsset("./index.html"), response.clone());
-        return response;
-      } catch (_) {
-        const playerPage=url.pathname.includes("/play/")?resolveAsset("./play/index.html"):null;
-        const exact=await caches.match(request)||(playerPage&&await caches.match(playerPage));if(exact)return exact;
-        if(url.pathname===new URL("./",APP_ROOT).pathname||url.pathname===new URL("./index.html",APP_ROOT).pathname)return (await caches.match(resolveAsset("./index.html")))||(await caches.match(resolveAsset("./")));
-        return new Response("This page has not been cached for offline use.",{status:503,headers:{"Content-Type":"text/plain; charset=utf-8"}});
-      }
-    })());
-    return;
-  }
   // Cache only first-party app resources. Never cache audio, user imports, ZIPs,
   // saves, level payloads, or any cross-origin content here.
   if (!/\.(?:js|mjs|css|png|jpe?g|webp|svg|ico|woff2?|ttf|otf|webmanifest|json)$/i.test(url.pathname)) return;
