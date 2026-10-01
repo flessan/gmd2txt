@@ -320,7 +320,7 @@ class BootScene extends Phaser.Scene {
       if (window.gmdplayerStandalone && window.gmdplayerRuntimeMode) {
         const runtimeLevelId = window.currentlevel?.[2];
         const runtimeMatch = /^level_(\d+)$/.exec(String(runtimeLevelId || ""));
-        if (runtimeMatch && !this.cache.text.has(runtimeLevelId)) {
+        if (runtimeMatch && !this.cache.text.get(runtimeLevelId)) {
           this.load.text(runtimeLevelId, "assets/levels/" + runtimeMatch[1] + ".txt");
         }
       }

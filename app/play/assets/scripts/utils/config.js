@@ -80,6 +80,22 @@ window.currentlevel = [
 window.orbClickScale = 2.0;
 window.orbClickShrinkTime = 250;
 window.orbParticleSize = 3.5;
+const requestedRuntimeLevel = urlParams.get("level");
+if (window.gmdplayerRuntimeMode && requestedRuntimeLevel && Array.isArray(window.allLevels)) {
+  const requested = String(requestedRuntimeLevel).trim().toLowerCase();
+  const found = window.allLevels.find(level => {
+    if (!Array.isArray(level)) return false;
+    return String(level[2] || "").toLowerCase() === requested ||
+      String(level[0] || "").toLowerCase() === requested;
+  });
+  if (found) {
+    window.currentlevel = [...found];
+  }
+}
+
+if (urlParams.has("id")) {
+  window.levelID = urlParams.get("id");
+}
 
 // -------------------------------
 
