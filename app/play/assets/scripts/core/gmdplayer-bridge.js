@@ -44,6 +44,35 @@
     }
   });
 
+  // The bundled build only wires jumping to pointer input, so the usual Geometry
+  // Dash keys are mirrored onto the very same entry points the pointer path uses.
+  // Holding a key keeps `upKeyDown` set, which is also how auto-jumping works.
+  const JUMP_KEYS = new Set([" ", "Spacebar", "ArrowUp", "Up", "w", "W"]);
+  function keyboardJump(pressed) {
+    const scene = runtime()?.scene;
+    if (!scene || window.isEditor) return;
+    if (scene._menuActive || scene._paused || scene._levelWon) return;
+    if (pressed) {
+      if (!scene._state?.upKeyDown) scene._pushButton?.();
+    } else if (scene._state?.upKeyDown) {
+      scene._releaseButton?.();
+    }
+  }
+
+  window.addEventListener("keydown", event => {
+    if (event.repeat || !JUMP_KEYS.has(event.key)) return;
+    keyboardJump(true);
+  });
+  window.addEventListener("keyup", event => {
+    if (!JUMP_KEYS.has(event.key)) return;
+    keyboardJump(false);
+  });
+  // A key held while the player loses focus must not keep the cube jumping.
+  window.addEventListener("blur", () => {
+    const scene = runtime()?.scene;
+    if (scene?._state?.upKeyDown) scene._releaseButton?.();
+  });
+
   window.addEventListener("message", async event => {
     // A runtime opened on its own (window.parent === window) would otherwise
     // receive its own outgoing messages and wait forever for a level hand-off.

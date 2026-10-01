@@ -481,6 +481,14 @@ body.has-player { overflow: hidden; }
   color: #e8f2ec;
 }
 .player-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* On narrow screens the status line drops to its own row so the level name and
+   the Close button always stay readable. */
+@media (max-width: 640px) {
+  .player-bar { flex-wrap: wrap; row-gap: 4px; }
+  .player-title { flex: 1 1 auto; min-width: 0; }
+  .player-bar .spacer { display: none; }
+  .player-status { order: 3; flex: 1 1 100%; }
+}
 .player-bar .btn { border-color: #2b4037; background: #12251e; color: #e8f2ec; }
 .player-bar .btn:hover { border-color: #3fca8a; color: #3fca8a; }
 .player-viewport { position: relative; min-height: 0; }

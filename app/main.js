@@ -813,8 +813,8 @@ async function playEntry(entry) {
     });
     dom.playerLoading.hidden = true;
     dom.playerStatus.textContent = warm.staged
-      ? "Playing — press Space to jump, Escape or Close to leave."
-      : "Loaded — press Space to play, Escape or Close to leave.";
+      ? "Playing — Space or click to jump, Esc or Close to leave."
+      : "Loaded — press Space or click to play, Esc or Close to leave.";
   } catch (error) {
     dom.playerLoading.hidden = true;
     dom.playerStatus.textContent = "This preview could not start.";
