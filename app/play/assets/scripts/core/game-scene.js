@@ -4167,46 +4167,31 @@ this._menuUpdateLogBtn = this.add.image(screenWidth - 30 - 50, 33, "GJ_WebSheet"
       }
     };
 
-    if (this.game.registry.get("autoStartGame")) {
-      if (!startRuntime()) {
-        showWaiting(
-          "Waiting for level",
-          this._runtimeEmbedded
-            ? "GMDPlayer is ready. Send a level to the runtime to begin."
-            : "No playable level source was found."
-        );
-      }
-      return;
-    }
+    /**
+     * Plays a bundled level right away: the level asked for with ?level=, or the
+     * first official level. The runtime is never left on a dead-end screen that
+     * asks the visitor to "send a level".
+     */
+    const startBundledLevel = () => {
+      const official = Array.isArray(window.allLevels) ? window.allLevels : [];
+      const requestedId = window.currentlevel?.[2] || null;
+      const candidates = [requestedId, ...official.map(entry => entry?.[2])].filter(Boolean);
+      const runtimeLevelId = candidates.find(id => /^level_\d+$/.test(String(id)));
+      if (!runtimeLevelId) return false;
 
-    if (this._runtimeStandalone) {
-      if (startRuntime()) return;
+      const officialEntry = official.find(entry => entry?.[2] === runtimeLevelId);
+      if (officialEntry) window.currentlevel = [...officialEntry];
+      window._onlineLevelId = window.currentlevel[2];
+      const runtimeMatch = /^level_(\d+)$/.exec(String(runtimeLevelId));
 
-      const runtimeLevelId = window.currentlevel?.[2];
-      const runtimeMatch = /^level_(\d+)$/.exec(String(runtimeLevelId || ""));
-      if (!runtimeMatch) {
-        showWaiting(
-          "No level selected",
-          "Use ?level=level_1 or choose an official Geometry Dash level."
-        );
-        return;
-      }
-
-      this.input.enabled = false;
-      this._showRuntimeStatus(
-        "Loading level",
-        window.currentlevel?.[1] || runtimeLevelId
-      );
-
-      this.load.text(runtimeLevelId, "assets/levels/" + runtimeMatch[1] + ".txt");
-      this.load.once("complete", () => {
-        const loaded = this.cache.text.get(runtimeLevelId);
+      const begin = loadedLevelText => {
+        const loaded = loadedLevelText || this.cache.text.get(runtimeLevelId);
         if (!loaded) {
-          showWaiting("Level unavailable", "The local level asset could not be loaded.");
+          showWaiting("Level unavailable", "The bundled level file could not be loaded.");
           return;
         }
-
         try {
+          this.cache.text.add(runtimeLevelId, loaded);
           this._level.loadLevel(loaded);
           if (!window.settingsMap) {
             throw new Error("The level settings are incomplete.");
@@ -4222,14 +4207,58 @@ this._menuUpdateLogBtn = this.add.image(screenWidth - 30 - 50, 33, "GJ_WebSheet"
             error?.message || "The level failed to initialize."
           );
         }
+      };
+
+      const cached = this.cache.text.get(runtimeLevelId);
+      if (cached) {
+        begin(cached);
+        return true;
+      }
+
+      this.input.enabled = false;
+      this._showRuntimeStatus("Starting level", window.currentlevel?.[1] || runtimeLevelId);
+      // Plain fetch on purpose: the scene loader may already be shut down by the
+      // time this runs, and a stalled loader would leave the visitor waiting.
+      fetch("assets/levels/" + runtimeMatch[1] + ".txt")
+        .then(response => {
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.text();
+        })
+        .then(text => begin(text))
+        .catch(() => {
+          if (window._gmdplayerHandoffRequested) return;
+          showWaiting("Level unavailable", "The bundled level file could not be loaded.");
+        });
+      return true;
+    };
+
+    // 1. A level handed over by an embedder (the gmd2txt app) wins.
+    if (this.game.registry.get("autoStartGame") && startRuntime()) return;
+    // 2. Otherwise play whatever level is already cached or buffered.
+    if (startRuntime()) return;
+
+    // Embedded runtimes normally receive a level from the embedding app within
+    // moments of this point. If that never arrives (someone opened this URL
+    // directly), play a bundled level instead of showing a dead end.
+    if (this._runtimeEmbedded) {
+      this._showRuntimeStatus("Starting level", window.currentlevel?.[1] || "Geometry Dash");
+      // A pre-warmed runtime waiting for its level gets a long grace period; a
+      // runtime someone opened by hand only waits a moment before playing.
+      const grace = window.gmdplayerHoldForLevel ? 30000 : 1500;
+      this.time.delayedCall(grace, () => {
+        if (window._gmdplayerHandoffRequested || this._runtimeWaiting || this._menuActive === false) return;
+        startBundledLevel();
       });
-      this.load.start();
-    } else {
-      showWaiting(
-        "Waiting for level",
-        "GMDPlayer is ready. Send a level to the runtime to begin."
-      );
+      return;
     }
+
+    // 3. Otherwise start a bundled level immediately.
+    if (startBundledLevel()) return;
+
+    showWaiting(
+      "Player could not start",
+      "No level data was found. Open gmd2txt and use “Play preview”, or add ?level=level_1 to the URL."
+    );
   }
 
   _parseLevelColors(levelId) {

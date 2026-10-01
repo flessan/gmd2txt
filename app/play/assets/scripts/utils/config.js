@@ -70,6 +70,10 @@ const urlParams = new URLSearchParams(window.location.search);
 window.gmdplayerEmbedded = urlParams.get("gmdplayer") === "1";
 window.gmdplayerRuntimeMode = urlParams.get("menu") !== "1";
 window.gmdplayerStandalone = !window.gmdplayerEmbedded;
+// hold=1 means an embedding app has already started booting this runtime in the
+// background and will send a level shortly, so it should wait instead of
+// starting a bundled level on its own.
+window.gmdplayerHoldForLevel = urlParams.get("hold") === "1";
 
 window.currentlevel = [
 	"stereo_madness", // internal level name

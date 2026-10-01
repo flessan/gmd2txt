@@ -448,9 +448,29 @@ dialog::backdrop { background: rgba(6, 20, 14, .55); backdrop-filter: blur(3px);
 .sheet-head h2 { font-size: 19px; flex: 1 1 auto; }
 .sheet-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-.player { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; }
-.player[open] { display: grid; place-items: stretch; grid-template-rows: auto 1fr; background: #06110d; }
-.player::backdrop { background: #06110d; }
+/* The player is an overlay rather than a <dialog> on purpose: an iframe that is
+   moved in the DOM is torn down and booted again, so the Geometry Dash runtime
+   has to stay exactly where it is and simply sit off-screen while it waits. */
+.player-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: #06110d;
+  color: #e8f2ec;
+}
+.player-overlay.is-parked {
+  left: -20000px;
+  right: auto;
+  top: 0;
+  bottom: auto;
+  width: 960px;
+  height: 540px;
+  visibility: hidden;
+  pointer-events: none;
+}
+body.has-player { overflow: hidden; }
 .player-bar {
   display: flex;
   align-items: center;
@@ -463,7 +483,8 @@ dialog::backdrop { background: rgba(6, 20, 14, .55); backdrop-filter: blur(3px);
 .player-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-bar .btn { border-color: #2b4037; background: #12251e; color: #e8f2ec; }
 .player-bar .btn:hover { border-color: #3fca8a; color: #3fca8a; }
-.player-stage { position: relative; min-height: 0; }
+.player-viewport { position: relative; min-height: 0; }
+.player-stage { position: absolute; inset: 0; }
 .player-stage iframe { display: block; width: 100%; height: 100%; border: 0; background: #06110d; }
 .player-loading {
   position: absolute;

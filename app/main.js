@@ -19,7 +19,7 @@ import {
 } from "../core/convert/level-file.js";
 import { writeZipBlob } from "../core/textures/zip.js";
 import { createLevel, deleteLevel, getLevel, getLibrarySummaries } from "../core/storage/database.js";
-import { PlayerAdapter } from "../core/runtime/player-adapter.js";
+import { PlayerAdapter, playerRuntimeUrl } from "../core/runtime/player-adapter.js";
 
 const meta = globalThis.GMDPLAYER_META || {};
 const officialSongs = Array.isArray(globalThis.allLevels) ? globalThis.allLevels : null;
@@ -46,7 +46,7 @@ const dom = {
   pasteText: document.querySelector("#paste-text"),
   pasteStatus: document.querySelector("#paste-status"),
   pasteOpen: document.querySelector("#paste-open"),
-  playerDialog: document.querySelector("#player-dialog"),
+  playerOverlay: document.querySelector("#player-overlay"),
   playerStage: document.querySelector("#player-stage"),
   playerLoading: document.querySelector("#player-loading"),
   playerLoadingHint: document.querySelector("#player-loading-hint"),
@@ -61,7 +61,8 @@ const state = {
   history: [],
   usedNames: new Set(),
   nextId: 1,
-  player: null
+  player: null,
+  playingKey: null
 };
 
 /* ------------------------------------------------------------------ *
@@ -225,6 +226,9 @@ async function processEntry(entry, readText, fileInfo) {
     entry.status = "ready";
     render();
     revealResults();
+    // Boot the preview runtime in the background and pre-load this level, so
+    // "Play preview" opens straight into gameplay.
+    scheduleWarmRuntime(900, entry);
     rememberConversion(entry, fileInfo);
   } catch (error) {
     entry.status = "error";
@@ -595,9 +599,166 @@ async function savedConversion(id) {
   };
 }
 
+const RUNTIME_CHANNEL = "gmdplayer-runtime";
+
+function playerIsOpen() {
+  return Boolean(dom.playerOverlay) && !dom.playerOverlay.classList.contains("is-parked");
+}
+
+function openPlayerOverlay() {
+  dom.playerOverlay.classList.remove("is-parked");
+  document.body.classList.add("has-player");
+  try { dom.playerOverlay.focus({ preventScroll: true }); } catch (_) {}
+}
+
+function closePlayerOverlay() {
+  dom.playerOverlay.classList.add("is-parked");
+  document.body.classList.remove("has-player");
+}
+
 /* ------------------------------------------------------------------ *
  * Player preview
+ *
+ * The bundled Geometry Dash runtime needs a few seconds to boot its assets, so
+ * it is started in the background as soon as a level has been converted. By the
+ * time someone presses "Play preview", the level can be handed over and starts
+ * almost immediately.
  * ------------------------------------------------------------------ */
+
+const warmRuntime = {
+  frame: null,
+  expiry: 0,
+  ready: false,
+  pendingEntry: null,   // newest level waiting for the runtime to boot
+  loadedKey: null,      // level the parked runtime is holding, ready to resume
+  loadingKey: null      // level currently being handed to the parked runtime
+};
+
+const playKey = entry => entry?.document?.id || entry?.id || null;
+
+/** The exact document handed to the runtime when a level is previewed. */
+function playDocumentFor(entry) {
+  return { ...entry.document, content: { ...entry.document.content, raw: entry.conversion.levelString } };
+}
+
+function runtimeFrameMessage(event) {
+  if (!warmRuntime.frame || event.source !== warmRuntime.frame.contentWindow) return;
+  const data = event.data;
+  if (data?.channel !== RUNTIME_CHANNEL) return;
+  if (data.type === "ready") {
+    warmRuntime.ready = true;
+    if (warmRuntime.pendingEntry) {
+      const entry = warmRuntime.pendingEntry;
+      warmRuntime.pendingEntry = null;
+      stageWarmLevel(entry);
+    }
+  } else if (data.type === "level-loaded" && warmRuntime.loadingKey) {
+    warmRuntime.loadedKey = warmRuntime.loadingKey;
+    warmRuntime.loadingKey = null;
+    parkWarmRuntime();
+  }
+}
+
+/** Silences the hidden runtime so nothing is heard while it waits off-screen. */
+function muteWarmRuntime(muted) {
+  try {
+    const game = warmRuntime.frame?.contentWindow?.gmdRuntimeGame;
+    if (game?.sound) game.sound.mute = muted;
+  } catch (_) { /* the runtime is mid-boot; it will be muted when it is parked */ }
+}
+
+function parkWarmRuntime() {
+  const frame = warmRuntime.frame;
+  if (!frame) return;
+  muteWarmRuntime(true);
+  frame.contentWindow.postMessage({ channel: RUNTIME_CHANNEL, type: "park" }, window.location.origin);
+}
+
+/**
+ * Hands a level to the parked runtime ahead of time, so "Play preview" only has
+ * to show the frame. Nothing is audible: the runtime is muted and paused while
+ * it sits off-screen, and the level is reset to its first obstacle.
+ */
+function stageWarmLevel(entry) {
+  if (!entry?.conversion || !entry?.document) return;
+  const key = playKey(entry);
+  if (!key || warmRuntime.loadedKey === key || warmRuntime.loadingKey === key) return;
+  if (!warmRuntime.frame) return;
+  if (!warmRuntime.ready) {
+    warmRuntime.pendingEntry = entry;
+    return;
+  }
+  warmRuntime.loadingKey = key;
+  warmRuntime.frame.contentWindow.postMessage(
+    { channel: RUNTIME_CHANNEL, type: "load-level", document: playDocumentFor(entry), localAudio: null },
+    window.location.origin
+  );
+}
+
+function warmPlayerRuntime() {
+  if (warmRuntime.frame || !dom.playerStage) return warmRuntime.frame;
+  const frame = document.createElement("iframe");
+  frame.className = "player-frame";
+  frame.title = "Geometry Dash preview (starting in the background)";
+  frame.setAttribute("aria-hidden", "true");
+  frame.allow = "autoplay; fullscreen; gamepad";
+  frame.allowFullscreen = true;
+  frame.src = `${playerRuntimeUrl()}&hold=1`;
+  frame.addEventListener("load", () => setTimeout(() => stageWarmLevel(warmRuntime.pendingEntry), 0));
+  // The frame is created here and never moved afterwards: re-parenting an iframe
+  // makes the browser throw away the runtime and boot it from scratch again.
+  dom.playerStage.replaceChildren(frame);
+  warmRuntime.frame = frame;
+  warmRuntime.ready = false;
+  warmRuntime.loadedKey = null;
+  warmRuntime.loadingKey = null;
+  // Do not keep a hidden runtime alive forever.
+  clearTimeout(warmRuntime.expiry);
+  warmRuntime.expiry = setTimeout(releaseWarmRuntime, 10 * 60 * 1000);
+  return frame;
+}
+
+function releaseWarmRuntime() {
+  clearTimeout(warmRuntime.expiry);
+  warmRuntime.expiry = 0;
+  warmRuntime.frame?.remove();
+  warmRuntime.frame = null;
+  warmRuntime.ready = false;
+  warmRuntime.loadedKey = null;
+  warmRuntime.loadingKey = null;
+}
+
+/**
+ * Boots the runtime in the background (and pre-loads the newest level once it
+ * is up) while the person is still reading the conversion result.
+ */
+function scheduleWarmRuntime(delay = 900, entry = null) {
+  if (entry) warmRuntime.pendingEntry = entry;
+  if (warmRuntime.frame) {
+    if (warmRuntime.ready) stageWarmLevel(warmRuntime.pendingEntry);
+    return;
+  }
+  const start = () => setTimeout(() => {
+    warmPlayerRuntime();
+    if (warmRuntime.ready) stageWarmLevel(warmRuntime.pendingEntry);
+  }, delay);
+  if (typeof requestIdleCallback === "function") requestIdleCallback(start, { timeout: 2500 });
+  else start();
+}
+
+function takeWarmRuntime(entry) {
+  const frame = warmRuntime.frame || warmPlayerRuntime();
+  if (!frame) return { frame: null, staged: false };
+  clearTimeout(warmRuntime.expiry);
+  warmRuntime.expiry = 0;
+  warmRuntime.frame = null;
+  const key = playKey(entry);
+  const staged = Boolean(key) && warmRuntime.loadedKey === key;
+  warmRuntime.loadedKey = null;
+  warmRuntime.loadingKey = null;
+  warmRuntime.pendingEntry = null;
+  return { frame, staged };
+}
 
 async function playEntry(entry) {
   if (!entry?.document || !entry?.conversion) {
@@ -608,7 +769,7 @@ async function playEntry(entry) {
   dom.playerTitle.textContent = conversion.displayName;
   dom.playerStatus.textContent = "";
   dom.playerLoading.hidden = false;
-  openDialog(dom.playerDialog);
+  openPlayerOverlay();
 
   // Loading hint for slow devices: the runtime pulls its own assets on first run.
   if (dom.playerLoadingHint) dom.playerLoadingHint.textContent = "This can take a few seconds the first time.";
@@ -618,6 +779,12 @@ async function playEntry(entry) {
     }
   }, 9000);
 
+  const warm = takeWarmRuntime(entry);
+  // A frame that is already running needs no loading screen of ours.
+  if (warm.frame) {
+    dom.playerLoading.hidden = true;
+    dom.playerStatus.textContent = warm.staged ? "Starting your level…" : "Preparing your level…";
+  }
   const adapter = new PlayerAdapter({
     onExit: () => closePlayer(),
     onError: message => { dom.playerStatus.textContent = message; },
@@ -629,11 +796,25 @@ async function playEntry(entry) {
     }
   });
   state.player = adapter;
-  const documentForPlay = { ...entry.document, content: { ...entry.document.content, raw: conversion.levelString } };
+  state.playingKey = playKey(entry);
   try {
-    await adapter.load(documentForPlay, dom.playerStage, { localAudio: null, allowUnconfirmedStart: true });
+    await adapter.load(playDocumentFor(entry), dom.playerStage, {
+      frame: warm.frame,
+      staged: warm.staged,
+      keepAlive: true,
+      localAudio: null,
+      allowUnconfirmedStart: true,
+      // The runtime paints its own loading screen: show it instead of our spinner.
+      onMounted: () => setTimeout(() => {
+        if (!playerIsOpen()) return;
+        dom.playerLoading.hidden = true;
+        dom.playerStatus.textContent = "Preparing your level…";
+      }, 450)
+    });
     dom.playerLoading.hidden = true;
-    dom.playerStatus.textContent = "Loaded — press Space to play, Escape or Close to leave.";
+    dom.playerStatus.textContent = warm.staged
+      ? "Playing — press Space to jump, Escape or Close to leave."
+      : "Loaded — press Space to play, Escape or Close to leave.";
   } catch (error) {
     dom.playerLoading.hidden = true;
     dom.playerStatus.textContent = "This preview could not start.";
@@ -646,8 +827,25 @@ async function playEntry(entry) {
 function closePlayer() {
   const adapter = state.player;
   state.player = null;
-  try { adapter?.stop(false); } catch (_) { /* already stopped */ }
-  closeDialog(dom.playerDialog);
+  const playingKey = state.playingKey;
+  state.playingKey = null;
+  try {
+    // "park" pauses the runtime, winds the level back to the start and mutes it,
+    // so replaying the same level is instant even hours later.
+    adapter?.park();
+    adapter?.stop(false);
+    // The runtime keeps running in place (it is parked off-screen by CSS, never
+    // moved) and still holds this level, so replaying it is instant.
+    const frame = dom.playerStage?.querySelector("iframe");
+    if (frame) {
+      warmRuntime.frame = frame;
+      warmRuntime.loadedKey = playingKey;
+      warmRuntime.ready = true;
+      clearTimeout(warmRuntime.expiry);
+      warmRuntime.expiry = setTimeout(releaseWarmRuntime, 10 * 60 * 1000);
+    }
+  } catch (_) { /* the runtime was already gone */ }
+  closePlayerOverlay();
   dom.playerLoading.hidden = false;
   dom.playerStatus.textContent = "";
 }
@@ -682,7 +880,7 @@ function bindEvents() {
   window.addEventListener("dragover", event => event.preventDefault());
   window.addEventListener("drop", event => {
     if (!event.dataTransfer?.files?.length) return;
-    if (document.querySelector("dialog[open]")) return;
+    if (document.querySelector("dialog[open]") || playerIsOpen()) return;
     event.preventDefault();
     dragDepth = 0;
     setOver(false);
@@ -743,6 +941,15 @@ function bindEvents() {
     }
   });
 
+  // Hovering or focusing a play button is a strong hint a preview is next.
+  const warmOnIntent = event => {
+    if (event.target.closest("[data-action=play], [data-action=saved-play]")) scheduleWarmRuntime(0);
+  };
+  dom.resultList.addEventListener("mouseover", warmOnIntent);
+  dom.resultList.addEventListener("focusin", warmOnIntent);
+  dom.savedList.addEventListener("mouseover", warmOnIntent);
+  dom.savedList.addEventListener("focusin", warmOnIntent);
+
   dom.resultList.addEventListener("toggle", event => {
     const details = event.target;
     if (!(details instanceof HTMLDetailsElement) || !details.dataset.details) return;
@@ -786,7 +993,12 @@ function bindEvents() {
   });
 
   dom.playerClose.addEventListener("click", closePlayer);
-  dom.playerDialog.addEventListener("cancel", event => { event.preventDefault(); closePlayer(); });
+  window.addEventListener("message", runtimeFrameMessage);
+  dom.playerOverlay.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closePlayer();
+  });
 
   dom.savedList.addEventListener("click", async event => {
     const button = event.target.closest("[data-action]");

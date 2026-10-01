@@ -199,7 +199,7 @@
     </form>
   </dialog>
 
-  <dialog id="player-dialog" class="player">
+  <section id="player-overlay" class="player-overlay is-parked" role="dialog" aria-modal="true" aria-label="Level preview" tabindex="-1">
     <div class="player-bar">
       <span class="player-title" id="player-title">Level preview</span>
       <span class="player-status muted small" id="player-status"></span>
@@ -207,14 +207,15 @@
       <button type="button" class="btn ghost small" id="player-close">
         <svg class="icon"><use href="#i-close"></use></svg>Close</button>
     </div>
-    <div id="player-stage" class="player-stage">
+    <div class="player-viewport">
+      <div id="player-stage" class="player-stage"></div>
       <div class="player-loading" id="player-loading">
         <span class="spinner" aria-hidden="true"></span>
         <p>Starting the bundled Geometry Dash runtime…</p>
-        <small id="player-loading-hint">This can take a few seconds the first time.</small>
+        <small id="player-loading-hint">Levels start by themselves — no extra clicks needed.</small>
       </div>
     </div>
-  </dialog>
+  </section>
 
   <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
 

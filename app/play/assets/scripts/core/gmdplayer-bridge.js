@@ -4,7 +4,7 @@
   const send = (type, extra = {}) => window.parent.postMessage({ channel: CHANNEL, type, ...extra }, "*");
 
   function runtime() {
-    const game = window.Phaser?.GAMES?.[0];
+    const game = window.gmdRuntimeGame || window.Phaser?.GAMES?.[0];
     if (!game) return null;
     try {
       const scene = game.scene.getScene("GameScene");
@@ -45,8 +45,12 @@
   });
 
   window.addEventListener("message", async event => {
+    // A runtime opened on its own (window.parent === window) would otherwise
+    // receive its own outgoing messages and wait forever for a level hand-off.
+    if (window.parent === window) return;
     if (event.source !== window.parent || event.data?.channel !== CHANNEL) return;
     const message = event.data;
+    window._gmdplayerHandoffRequested = true;
     try {
       const { game, scene } = await waitForScene();
       if (message.type === "load-level") {
@@ -102,6 +106,15 @@
         if (scene._paused) scene._resumeGame(); else scene._pauseGame();
       } else if (message.type === "restart") {
         scene._restartLevel();
+      } else if (message.type === "park") {
+        // The embedder is hiding the frame: pause it, wind the level back to the
+        // start and stay silent, so showing it again is instant.
+        try {
+          if (!scene._paused && typeof scene._pauseGame === "function") scene._pauseGame();
+          if (typeof scene._restartLevel === "function") scene._restartLevel();
+          if (!scene._paused && typeof scene._pauseGame === "function") scene._pauseGame();
+          if (game?.sound) game.sound.mute = true;
+        } catch (_) {}
       } else if (message.type === "exit") {
         sendProgress(scene);
         send("exit-request");

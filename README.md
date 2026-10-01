@@ -30,8 +30,14 @@ works offline.
 2. **See what's inside.** Every result reports the level's object count, creator, song, portals,
    triggers, game modes and start position, so the file is not a black box.
 3. **Take the result.** Copy the text, download the converted file, download everything as a `.zip`,
-   open the *Readable text* view to inspect the decoded level, or hit **Play preview** to load the
-   level into the bundled Geometry Dash runtime.
+   open the *Readable text* view to inspect the decoded level, or hit **Play preview** to jump straight
+   into the bundled Geometry Dash runtime.
+
+The preview is *pre-warmed*: as soon as a level has been converted, the runtime boots quietly in the
+background and the converted level is handed to it, paused at the first obstacle. "Play preview" then
+opens directly into gameplay — no loading screen and no "waiting for level" dead end. The same runtime
+is reused for the next preview (the level simply restarts), and the standalone player at
+`/app/play/` picks a bundled level by itself (`/app/play/?level=level_7` for a specific one).
 
 Mistakes are explained in plain language ("this looks like a save file, not a level file") instead of
 throwing errors, and every download button also has a copy button for people who just want the text.
@@ -133,7 +139,8 @@ horizontal overflow, the offline reload, the save-file error path, and the works
 * Save files (`CCGameManager.dat`) are intentionally out of the converter's scope — they are handled
   by the workshop's save explorer instead.
 * The gameplay preview loads the bundled runtime; it is a bonus, and playback fidelity depends on
-  that runtime (and on the browser's WebGL/audio support), not on this converter.
+  that runtime (and on the browser's WebGL/audio support), not on this converter. The first preview on
+  a cold page still waits a few seconds for that runtime to boot; previews after it start instantly.
 
 ## Credits & licence
 
