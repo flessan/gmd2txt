@@ -536,6 +536,76 @@ async function hydrateTexturePackCards() {
 }
 
 
+function attachTextureSpriteHoverPreviews(pack, sheet) {
+  const buttons = [...document.querySelectorAll(".texture-sprite[data-texture-sprite]")];
+  if (!buttons.length || !sheet?.source?.png) return;
+
+  const previewCache = attachTextureSpriteHoverPreviews.cache ||= new Map();
+
+  buttons.forEach(button => {
+    let loaded = false;
+
+    const showPreview = async () => {
+      if (loaded || !button.isConnected) return;
+      loaded = true;
+
+      const name = button.dataset.textureSprite;
+      const frame = sheet.parsed?.frames?.[name];
+      if (!frame) return;
+
+      const mount = button.querySelector(".texture-sprite-thumb");
+      if (!mount) return;
+
+      try {
+        const cacheKey = `${pack.id}:${sheet.id}:${name}:${pack.modifications?.[sheet.id]?.[name]?.updatedAt || "original"}`;
+        let url = previewCache.get(cacheKey);
+
+        if (!url) {
+          const modification = pack.modifications?.[sheet.id]?.[name];
+          const source = modification?.png || sheet.source.png;
+          const canvas = modification?.png
+            ? await decodePng(modification.png)
+            : await extractSprite(source, frame, { maxDimension: 96 });
+
+          let output;
+          if (modification?.png) {
+            const fitted = document.createElement("canvas");
+            const width = canvas.width, height = canvas.height;
+            const scale = Math.min(1, 96 / Math.max(width, height));
+            fitted.width = Math.max(1, Math.round(width * scale));
+            fitted.height = Math.max(1, Math.round(height * scale));
+            fitted.getContext("2d").drawImage(canvas, 0, 0, fitted.width, fitted.height);
+            canvas.close?.();
+            output = fitted;
+          } else {
+            output = canvas;
+          }
+
+          const png = await canvasToPngBytes(output);
+          output.close?.();
+          url = URL.createObjectURL(new Blob([png], { type: "image/png" }));
+          previewCache.set(cacheKey, url);
+        }
+
+        if (!button.isConnected) return;
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = "";
+        img.className = "texture-sprite-thumb-image";
+        img.decoding = "async";
+        mount.replaceChildren(img);
+        button.classList.add("sprite-preview-ready");
+      } catch (error) {
+        console.warn("Could not prepare sprite hover preview", error);
+      }
+    };
+
+    button.addEventListener("pointerenter", showPreview, { once: true });
+    button.addEventListener("focus", showPreview, { once: true });
+  });
+}
+
+
 async function renderTextureWorkspace() {
   if (!state.route.id) {
     const textureRows=filterResources(state.textures.map(pack=>({...pack,kind:"texture",name:pack.name,filename:pack.sourceFiles?.map(file=>file.name).join(" "),date:pack.updatedAt||pack.createdAt,projectIds:linkedProjects("textureWorkspaces",pack.id).map(item=>item.id)})),searchDefinition("textures",state.textureQuery,"texture"));
@@ -563,7 +633,7 @@ async function renderTextureWorkspace() {
   const modification = frame ? pack.modifications?.[state.selectedSprite.sheetId]?.[frame.name] : null;
   app.innerHTML = `<div class="shell">${header("textures")}<main class="main-content texture-editor"><a class="back-link" href="#/tools/textures">← All workspaces</a><div class="texture-title"><div><div class="eyebrow">Texture pack editor</div><h1>${esc(pack.name)}</h1><p class="section-meta">${sheets.length} sheets · ${getSpriteEntries(pack).length} sprites · Originals preserved</p></div><div class="texture-actions">${sheets.length > 1 ? `<button class="btn" data-action="texture-merge">Merge sheets…</button>` : ""}<button class="btn" data-action="texture-reset-all">Reset changes</button><button class="btn danger ghost" data-action="texture-delete">Remove workspace</button></div></div>
     <div class="texture-layout"><aside class="texture-browser"><div class="texture-browser-section"><div class="panel-heading"><span>Sheets</span><span>${sheets.length}</span></div><div class="texture-sheet-list">${sheets.map(item => `<button class="texture-sheet-row ${item.id === sheet?.id ? "selected" : ""}" data-action="texture-choose-sheet" data-sheet="${esc(item.id)}" aria-pressed="${item.id === sheet?.id}"><span class="texture-sheet-icon">${icon("texture")}</span><span class="texture-sheet-row-copy"><strong>${esc(item.name)}</strong><small>${item.parsed.width || "?"} × ${item.parsed.height || "?"} · ${Object.keys(item.parsed.frames || {}).length} sprites</small></span></button>`).join("")}</div></div>
-      <div class="texture-browser-section sprite-browser-section"><div class="panel-heading"><span>Sprites</span><span>${matchingSprites.length}</span></div><label class="texture-search-wrap">${icon("search")}<input class="search" id="texture-search" placeholder="Search sprites" value="${esc(state.textureQuery)}" aria-label="Search sprites"></label><div class="texture-sprite-list">${entries.map(item => `<button class="texture-sprite ${item.sheetId === state.selectedSprite?.sheetId && item.frame.name === state.selectedSprite?.name ? "selected" : ""}" data-action="texture-select" data-sheet="${esc(item.sheetId)}" data-sprite="${esc(item.frame.name)}"><span>${esc(item.frame.name)}</span><small>${Math.round(item.frame.frame.width)} × ${Math.round(item.frame.frame.height)}${item.frame.rotated ? " · rotated" : ""}</small></button>`).join("") || `<div class="texture-empty">${query ? "No sprites match." : "No parsed sprites on this sheet."}</div>`}${entries.length<matchingSprites.length?`<button class="btn small load-more" data-action="load-more-sprites">Show next ${Math.min(200,matchingSprites.length-entries.length)} sprites</button>`:""}</div></div></aside>
+      <div class="texture-browser-section sprite-browser-section"><div class="panel-heading"><span>Sprites</span><span>${matchingSprites.length}</span></div><label class="texture-search-wrap">${icon("search")}<input class="search" id="texture-search" placeholder="Search sprites" value="${esc(state.textureQuery)}" aria-label="Search sprites"></label><div class="texture-sprite-list">${entries.map(item => `<button class="texture-sprite ${item.sheetId === state.selectedSprite?.sheetId && item.frame.name === state.selectedSprite?.name ? "selected" : ""}" data-action="texture-select" data-sheet="${esc(item.sheetId)}" data-sprite="${esc(item.frame.name)}" data-texture-sprite="${esc(item.frame.name)}"><span class="texture-sprite-thumb" aria-hidden="true"></span><span class="texture-sprite-copy"><span>${esc(item.frame.name)}</span><small>${Math.round(item.frame.frame.width)} × ${Math.round(item.frame.frame.height)}${item.frame.rotated ? " · rotated" : ""}</small></span></button>`).join("") || `<div class="texture-empty">${query ? "No sprites match." : "No parsed sprites on this sheet."}</div>`}${entries.length<matchingSprites.length?`<button class="btn small load-more" data-action="load-more-sprites">Show next ${Math.min(200,matchingSprites.length-entries.length)} sprites</button>`:""}</div></div></aside>
     <section class="texture-detail">${sheet?.errors.length ? `<div class="texture-warning">${sheet.errors.map(esc).join(" · ")}</div>` : ""}<div class="texture-source-meta"><span>PNG · ${esc(sheet?.source.pngPath || "missing")}</span><span>PLIST · ${esc(sheet?.source.plistPath || "missing")}</span></div>
     <div class="texture-workspace-columns"><div class="texture-atlas-stage"><div class="atlas-stage-heading"><div><div class="eyebrow">Atlas canvas</div><h2>${esc(sheet?.name || "Texture sheet")}</h2></div><span>${sheet?.parsed.width || "?"} × ${sheet?.parsed.height || "?"} px</span></div><div class="atlas-viewport">${sheet?.source.png ? `<canvas id="atlas-preview" aria-label="Texture atlas with selected sprite highlighted"></canvas>` : `<div class="atlas-empty">PNG atlas not available</div>`}</div><p class="canvas-caption">Select a sprite to highlight its exact atlas slot.</p></div>
     <aside class="texture-inspector">${frame ? `<div class="inspector-heading"><div class="eyebrow">Selected sprite</div><h2>${esc(frame.name)}</h2><p>${modification ? "Modified pixels" : "Original sprite"}</p></div><div class="sprite-preview-panel"><canvas id="sprite-preview" aria-label="Selected sprite preview"></canvas></div>
@@ -574,6 +644,7 @@ async function renderTextureWorkspace() {
       <section class="inspector-section"><h3>Export</h3><button class="btn full-button" data-action="texture-export-sheet">Export sheet</button><button class="btn full-button primary" data-action="texture-export">Export pack</button></section>` : `<div class="empty-state"><h3>No valid sprite selected</h3><p>Check that a matching PNG and PLIST are available.</p><button class="btn primary" data-action="browse">Import texture files</button></div>`}</aside></div>
     <p class="texture-footnote">Texture editing is independent of the legacy gameplay renderer. ZIP files are treated as untrusted data and are never executed.</p></section></div></main></div>`;
   await drawTexturePreviews(pack.id, sheet, frame, modification);
+  attachTextureSpriteHoverPreviews(pack, sheet);
 }
 function cacheCanvas(cache, key, canvas, limit) {
   cache.delete(key); cache.set(key, canvas);
