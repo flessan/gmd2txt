@@ -4,6 +4,6 @@
     name: "gmd2txt",
     product: "gmd2txt — Geometry Dash level file converter",
     version: "2.0.0",
-    cacheRevision: "13"
+    cacheRevision: "14"
   });
 })(typeof self !== "undefined" ? self : globalThis);

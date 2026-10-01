@@ -117,4 +117,7 @@ test("parking the runtime silences and rewinds it for an instant replay", async 
   assert.match(park, /_pauseGame/, "a parked runtime must be paused");
   assert.match(park, /_restartLevel/, "a parked runtime restarts the level so replays begin at the first obstacle");
   assert.match(park, /sound\.mute = true/, "a parked runtime must be silent");
+  // The runtime refuses to pause during the level intro, so parking retries.
+  assert.match(park, /const settle = \(\) =>/, "parking must retry the pause until it takes");
+  assert.match(park, /if \(\+\+attempts > 8\) return;/);
 });

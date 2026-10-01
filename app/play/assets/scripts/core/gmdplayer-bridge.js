@@ -139,10 +139,20 @@
         // The embedder is hiding the frame: pause it, wind the level back to the
         // start and stay silent, so showing it again is instant.
         try {
+          if (game?.sound) game.sound.mute = true;
           if (!scene._paused && typeof scene._pauseGame === "function") scene._pauseGame();
           if (typeof scene._restartLevel === "function") scene._restartLevel();
-          if (!scene._paused && typeof scene._pauseGame === "function") scene._pauseGame();
-          if (game?.sound) game.sound.mute = true;
+          // The runtime refuses to pause during a level's intro, so keep trying
+          // until it takes: a parked runtime must not keep playing off-screen.
+          let attempts = 0;
+          const settle = () => {
+            const current = runtime()?.scene;
+            if (!current || current._paused === true || current._menuActive) return;
+            if (++attempts > 8) return;
+            if (typeof current._pauseGame === "function") current._pauseGame();
+            if (current._paused !== true) setTimeout(settle, 500);
+          };
+          setTimeout(settle, 500);
         } catch (_) {}
       } else if (message.type === "exit") {
         sendProgress(scene);
