@@ -79,12 +79,47 @@ export async function extractSprite(atlas, frame, options = {}) {
   return canvas;
 }
 
+/**
+ * Where a replacement image lands inside a sprite slot, for each fitting mode.
+ * Pure maths on purpose: this is the rule people rely on when they drop a big
+ * picture onto a small sprite, so it is unit tested in Node.
+ *
+ *   contain — keep the aspect ratio, whole image visible, transparent margins
+ *   cover   — keep the aspect ratio, fill the slot, crop the overflow
+ *   stretch — fill the slot exactly, aspect ratio may change ("fit" in the UI)
+ *   exact   — the replacement already has the slot's size
+ */
+export function fitRect(source, target, mode = "contain") {
+  const width = Math.max(1, Math.round(Number(source?.width) || 0));
+  const height = Math.max(1, Math.round(Number(source?.height) || 0));
+  const slotWidth = Math.max(1, Math.round(Number(target?.width) || 0));
+  const slotHeight = Math.max(1, Math.round(Number(target?.height) || 0));
+  if (mode === "stretch" || mode === "fit") return { x: 0, y: 0, width: slotWidth, height: slotHeight };
+  if (mode === "contain") {
+    const scale = Math.min(slotWidth / width, slotHeight / height);
+    const drawWidth = Math.max(1, Math.round(width * scale));
+    const drawHeight = Math.max(1, Math.round(height * scale));
+    return { x: Math.round((slotWidth - drawWidth) / 2), y: Math.round((slotHeight - drawHeight) / 2), width: drawWidth, height: drawHeight };
+  }
+  if (mode === "cover") {
+    const scale = Math.max(slotWidth / width, slotHeight / height);
+    const drawWidth = Math.max(1, Math.round(width * scale));
+    const drawHeight = Math.max(1, Math.round(height * scale));
+    return { x: Math.round((slotWidth - drawWidth) / 2), y: Math.round((slotHeight - drawHeight) / 2), width: drawWidth, height: drawHeight };
+  }
+  throw new Error("Choose how the image should fit the sprite: contain, cover, stretch or exact.");
+}
+
+export const SPRITE_FIT_MODES = ["contain", "cover", "stretch", "exact"];
+
 async function toCanvas(source) {
   if (source?.getContext) return source;
   return decodePng(source);
 }
 export async function createSpriteReplacement(atlasSource, frame, replacementSource, mode = "exact") {
-  if (!["exact", "fit"].includes(mode)) throw new Error("Choose Exact dimensions or Fit to slot.");
+  if (!["exact", "fit", "contain", "cover", "stretch"].includes(mode)) {
+    throw new Error("Choose how the image should fit the sprite: contain, cover, stretch or exact.");
+  }
   const atlasSize = atlasSource?.getContext || (typeof ImageBitmap === "function" && atlasSource instanceof ImageBitmap)
     ? { width: atlasSource.width, height: atlasSource.height }
     : await pngHeaderDimensions(atlasSource);
@@ -95,23 +130,27 @@ export async function createSpriteReplacement(atlasSource, frame, replacementSou
     ? { width: replacementSource.width, height: replacementSource.height }
     : await pngHeaderDimensions(replacementSource);
   if (mode === "exact" && (replacementSize.width !== logical.width || replacementSize.height !== logical.height)) {
-    throw new Error(`Exact replacement requires ${logical.width}×${logical.height}px. Choose Fit to slot to resize explicitly.`);
+    throw new Error(`An exact replacement must already be ${logical.width}×${logical.height}px — choose a fitting mode to resize automatically.`);
   }
-  let replacement, closeReplacement = false;
-  if (!sourceHasDimensions && mode === "fit" && typeof createImageBitmap === "function") {
-    const blob = replacementSource instanceof Blob ? replacementSource : new Blob([replacementSource], { type: "image/png" });
-    try {
-      replacement = await createImageBitmap(blob, { resizeWidth: logical.width, resizeHeight: logical.height, resizeQuality: "high" });
-      closeReplacement = true;
-    } catch (_) { replacement = await decodePng(blob); closeReplacement = true; }
-  } else { replacement = await toCanvas(replacementSource); closeReplacement = !sourceHasDimensions; }
+  const replacement = await toCanvas(replacementSource), closeReplacement = !sourceHasDimensions;
   if (mode === "exact" && (replacement.width !== replacementSize.width || replacement.height !== replacementSize.height)) {
     if (closeReplacement) replacement.close?.();
     throw new Error("Replacement PNG dimensions do not match its header.");
   }
+  // The picture is scaled for the person, never silently distorted: "contain"
+  // keeps the whole image, "cover" fills the slot, "stretch" is the explicit
+  // "make it exactly this size" option.
+  const place = fitRect({ width: replacement.width, height: replacement.height }, logical, mode);
   const fitted = makeCanvas(logical.width, logical.height), fctx = fitted.getContext("2d");
   fctx.imageSmoothingEnabled = mode !== "exact";
-  fctx.drawImage(replacement, 0, 0, logical.width, logical.height);
+  fctx.imageSmoothingQuality = "high";
+  // "cover" crops from the centre by drawing an oversized image into the slot.
+  if (mode === "cover") {
+    fctx.drawImage(replacement, place.x, place.y, place.width, place.height);
+  } else {
+    fctx.clearRect(0, 0, logical.width, logical.height);
+    fctx.drawImage(replacement, 0, 0, replacement.width, replacement.height, place.x, place.y, place.width, place.height);
+  }
   if (closeReplacement) replacement.close?.();
   return fitted;
 }

@@ -1,0 +1,213 @@
+/* GMD Workspace — the landing cabinet.
+   Deliberately not a marketing page: it reads like the front panel of a piece
+   of kit. Hard edges, chunky pressable buttons, GD-palette accents, and the
+   bundled sprite art doing the artwork. No web fonts, so it works offline. */
+
+:root {
+  color-scheme: dark;
+  --ink: #e9f5ef;
+  --muted: #93a9a0;
+  --panel: #121c18;
+  --panel-2: #16231e;
+  --panel-3: #0d1512;
+  --line: #2a3b33;
+  --line-bright: #3c5248;
+  --green: #3fca8a;
+  --green-deep: #0f7a4d;
+  --blue: #3cadf5;
+  --gold: #f8ff00;
+  --shadow: 5px 5px 0 rgba(0, 0, 0, .45);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 12% -10%, #14301f 0%, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #102a35 0%, transparent 55%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.022) 0 1px, transparent 1px 26px),
+    #0a120f;
+}
+.wrap { width: min(1120px, 100% - 40px); margin: 0 auto; }
+img { image-rendering: pixelated; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+a { color: inherit; }
+code, kbd { font-family: var(--mono); font-size: .92em; }
+code { background: rgba(63, 202, 138, .12); border: 1px solid rgba(63, 202, 138, .25); border-radius: 4px; padding: 1px 5px; }
+kbd {
+  background: #0c1613; border: 1px solid var(--line-bright); border-bottom-width: 3px;
+  border-radius: 5px; padding: 1px 6px; font-size: .86em; color: #cfe6db;
+}
+
+/* ---------------------------------------------------------------- top bar */
+.cabinet-top {
+  border-bottom: 2px solid var(--line);
+  background:
+    repeating-linear-gradient(135deg, rgba(63, 202, 138, .10) 0 12px, transparent 12px 24px),
+    linear-gradient(180deg, #16241e, #0e1815);
+}
+.cabinet-top-inner { display: flex; align-items: center; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+.wordmark { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.wordmark-cube {
+  width: 34px; height: 34px; flex: none; border-radius: 3px;
+  background: linear-gradient(160deg, #d8ffe9, var(--green) 45%, var(--green-deep));
+  border: 2px solid #07110d; box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .28), 3px 3px 0 rgba(0, 0, 0, .45);
+  position: relative;
+}
+.wordmark-cube::after {
+  content: ""; position: absolute; inset: 22% 22% 22% 22%;
+  background: #07110d; border-radius: 2px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.wordmark-text { display: flex; flex-direction: column; line-height: 1.15; }
+.wordmark-text strong { font-family: var(--mono); font-size: 17px; letter-spacing: .16em; }
+.wordmark-text small { color: var(--muted); font-size: 12px; letter-spacing: .06em; }
+.cabinet-nav { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.cabinet-nav a {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+  text-decoration: none; color: #cfe6db; padding: 8px 12px; border: 2px solid var(--line); border-radius: 4px;
+  background: #101a16;
+}
+.cabinet-nav a:hover { border-color: var(--green); color: var(--green); }
+
+.cabinet-main { padding: 26px 0 40px; display: grid; gap: 26px; }
+
+/* ---------------------------------------------------------------- intake */
+.intake {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px;
+  padding: 16px 18px;
+  border: 2px dashed var(--line-bright); border-radius: 8px;
+  background: linear-gradient(180deg, rgba(22, 35, 30, .92), rgba(13, 21, 18, .92));
+  transition: border-color .12s ease, background .12s ease, transform .12s ease;
+}
+.intake.is-over {
+  border-color: var(--green); border-style: solid;
+  background: linear-gradient(180deg, rgba(27, 58, 44, .95), rgba(13, 30, 23, .95));
+  transform: translateY(-1px);
+}
+.intake-slot {
+  width: 62px; height: 62px; display: grid; place-items: center; flex: none;
+  border: 2px solid var(--line); border-radius: 6px; background: #0b1512;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.4);
+}
+.intake-copy { display: grid; gap: 3px; min-width: 0; }
+.intake-copy strong { font-size: 16px; }
+.intake-copy small { color: var(--muted); }
+.intake-go {
+  display: inline-flex; align-items: center; gap: 8px; text-decoration: none; white-space: nowrap;
+  font-weight: 700; color: #06120d; background: var(--green);
+  border: 2px solid #07110d; border-radius: 6px; padding: 10px 14px; box-shadow: 3px 3px 0 rgba(0,0,0,.45);
+}
+.intake-go:hover { background: #55d99a; }
+.intake-arrow { width: 0; height: 0; border-left: 9px solid currentColor; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+
+/* ----------------------------------------------------------------- rooms */
+.rooms-title {
+  font-family: var(--mono); font-size: 13px; letter-spacing: .28em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 12px; font-weight: 600;
+}
+.room-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.room {
+  position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 18px 16px 18px 18px; min-height: 118px;
+  text-decoration: none; color: inherit;
+  border: 2px solid var(--line); border-radius: 8px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow: var(--shadow);
+  transition: transform .08s ease, box-shadow .08s ease, border-color .12s ease;
+}
+.room:hover { border-color: var(--green); transform: translate(-1px, -1px); box-shadow: 7px 7px 0 rgba(0,0,0,.45); }
+.room:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 rgba(0,0,0,.45); }
+.room:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.room-key {
+  position: absolute; top: -9px; left: -9px; width: 26px; height: 26px;
+  display: grid; place-items: center; font-family: var(--mono); font-size: 13px; font-weight: 700;
+  color: #06120d; background: var(--gold); border: 2px solid #07110d; border-radius: 4px;
+}
+.room-art {
+  width: 84px; height: 84px; flex: none; display: grid; place-items: center;
+  border: 2px solid var(--line); border-radius: 6px; background: #0b1512;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.35);
+}
+.room-art img { max-width: 62px; max-height: 62px; }
+.room-art-play { color: var(--green); background: radial-gradient(circle at 50% 45%, #12352a, #0b1512 70%); }
+.room-art-play svg { width: 46px; height: 46px; }
+.room-body { display: grid; gap: 5px; min-width: 0; }
+.room-body strong { font-size: 19px; letter-spacing: .01em; }
+.room-body small { color: var(--muted); line-height: 1.5; }
+.room-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.room-tags em {
+  font-style: normal; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: #bfe3d2; background: #10231b; border: 1px solid var(--line-bright); border-radius: 999px; padding: 2px 8px;
+}
+.room-go { color: var(--line-bright); }
+.room:hover .room-go { color: var(--green); }
+.room-go svg { width: 26px; height: 26px; }
+.room-sprites .room-art { border-color: #2f4a58; }
+
+/* ----------------------------------------------------------------- panel */
+.panel {
+  display: grid; gap: 12px; padding: 16px 18px;
+  border: 2px solid var(--line); border-radius: 8px; background: linear-gradient(180deg, #101a16, #0c1512);
+}
+.panel-row { display: flex; align-items: center; gap: 12px; }
+.panel-row p { margin: 0; color: #cfe6db; }
+.panel-led {
+  width: 12px; height: 12px; flex: none; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 0 3px rgba(63, 202, 138, .18), 0 0 10px rgba(63, 202, 138, .8);
+}
+.panel-led.is-empty { background: var(--line-bright); box-shadow: none; }
+.panel a { color: var(--green); }
+.formats { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; }
+.formats li {
+  font-family: var(--mono); font-size: 12px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 4px; padding: 3px 9px; background: #0a1310;
+}
+
+/* ------------------------------------------------------------------ foot */
+.cabinet-foot { border-top: 2px solid var(--line); background: #0b1411; }
+.cabinet-foot .wrap { padding: 16px 0 22px; display: grid; gap: 6px; }
+.cabinet-foot p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.cabinet-foot-meta { color: #6d8078 !important; }
+
+/* ----------------------------------------------------------------- toast */
+.hub-toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  max-width: min(560px, calc(100% - 32px));
+  padding: 12px 16px; border-radius: 6px; border: 2px solid #07110d;
+  background: var(--green); color: #06120d; font-weight: 600;
+  box-shadow: 4px 4px 0 rgba(0,0,0,.45); z-index: 50;
+}
+.hub-toast.is-error { background: #ef8b83; }
+
+/* ----------------------------------------------------------------- fatal */
+.fatal { border: 2px solid #6b2e2a; background: #1d1210; border-radius: 8px; padding: 18px; }
+.fatal h2 { margin: 0 0 8px; font-size: 20px; }
+.fatal p { color: #f0c9c5; margin: 0 0 10px; }
+.fatal pre { overflow: auto; font-size: 12px; color: #ffd9d5; }
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 860px) {
+  .room-grid { grid-template-columns: minmax(0, 1fr); }
+  .intake { grid-template-columns: auto 1fr; }
+  .intake-go { grid-column: 1 / -1; justify-content: center; }
+}
+@media (max-width: 520px) {
+  .wrap { width: min(1120px, 100% - 24px); }
+  .room { min-height: 0; padding: 14px; }
+  .room-art { width: 62px; height: 62px; }
+  .room-art img { max-width: 46px; max-height: 46px; }
+  .room-body strong { font-size: 17px; }
+  .wordmark-text strong { font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room, .intake { transition: none; }
+}

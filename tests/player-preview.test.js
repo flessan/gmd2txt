@@ -18,8 +18,8 @@ const sceneFile = "app/play/assets/scripts/core/game-scene.js";
 const bridgeFile = "app/play/assets/scripts/core/gmdplayer-bridge.js";
 const runtimeMainFile = "app/play/assets/scripts/core/main.js";
 const adapterFile = "core/runtime/player-adapter.js";
-const appMainFile = "app/main.js";
-const appShellFile = "app/index.html";
+const appMainFile = "app/convert/main.js";
+const appShellFile = "app/convert/index.html";
 
 test("the runtime publishes its game handle and nothing resolves Phaser.GAMES only", async () => {
   const [runtimeMain, bridge, adapter] = await Promise.all([

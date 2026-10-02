@@ -61,7 +61,8 @@ test("search remains responsive over a synthetic 5,000-record library", () => {
 test("PWA manifest icons, service worker shell URLs, and player adapter target exist", async () => {
   const manifest=JSON.parse(await readFile(path.join(root,"app/manifest.webmanifest"),"utf8"));
   assert.equal(manifest.display,"standalone");
-  assert.equal(manifest.start_url,"./", "the converter is the installed app, not the advanced workshop");
+  assert.equal(manifest.start_url,"./", "the workspace hub is the installed app");
+  assert.match(manifest.name,/Workspace/);
   for(const icon of manifest.icons){const file=path.join(root,"app",icon.src.replace(/^\.\//,""));assert.ok(existsSync(file),`missing ${icon.src}`);const bytes=await readFile(file);assert.equal(bytes.subarray(0,8).toString("hex"),"89504e470d0a1a0a");}
   const sw=await readFile(path.join(root,"sw.js"),"utf8");
   assert.match(sw,/addAll\(SHELL_ASSETS/);assert.doesNotMatch(sw,/skipWaiting/);assert.match(sw,/clients\.claim/);assert.match(sw,/request\.mode === "navigate"/);
@@ -71,21 +72,47 @@ test("PWA manifest icons, service worker shell URLs, and player adapter target e
   assert.ok(player.pathname.endsWith("/app/play/index.html"),`unexpected player URL ${player.href}`);
 });
 
-test("the converter entry points exist and the old routes still land somewhere useful", async () => {
-  // The single-job converter is the app root: index.html + main.js + its stylesheet,
-  // and the flow reads only from the shared core (no duplicated string handling).
-  for (const file of ["app/index.html","app/main.js","app/assets/gmd2txt.css","app/workbench/index.html","app/workbench/main.js","core/convert/level-file.js"]) {
+test("the workspace hub, the converter and the sprite studio all exist and link to each other", async () => {
+  // /app/ is the workspace landing page: a wall of rooms, not a single feature.
+  for (const file of ["app/index.html","app/workspace.js","app/assets/workspace.css","app/convert/index.html","app/convert/main.js","app/assets/gmd2txt.css","app/textures/index.html","app/textures/main.js","app/textures/textures.css","app/workbench/index.html","app/workbench/main.js","core/convert/level-file.js"]) {
     assert.ok(existsSync(path.join(root,file)),`missing ${file}`);
   }
-  const shell=await readFile(path.join(root,"app/index.html"),"utf8");
-  assert.match(shell,/type="module" src="\.\/main\.js"/);
-  assert.match(shell,/id="dropzone"/);
-  assert.match(shell,/id="result-list"/);
-  const main=await readFile(path.join(root,"app/main.js"),"utf8");
-  assert.match(main,/from "\.\.\/core\/convert\/level-file\.js"/, "the UI must use the shared conversion core");
-  const redirect=await readFile(path.join(root,"app/converter/index.html"),"utf8");
-  assert.match(redirect,/location\.replace\("\.\.\/"\)/);
-  const workbench=await readFile(path.join(root,"app/workbench/index.html"),"utf8");
-  assert.match(workbench,/href="\.\.\/"/, "the workshop links back to the converter");
-  for (const [,src] of shell.matchAll(/src="(\.\/[^"]+)"/g)) assert.ok(existsSync(path.resolve(root,"app",src)),`missing ${src}`);
+
+  const hub = await readFile(path.join(root,"app/index.html"),"utf8");
+  assert.match(hub,/type="module" src="\.\/workspace\.js"/);
+  assert.match(hub,/href="\.\/convert\/"/, "the hub links to the converter");
+  assert.match(hub,/href="\.\/textures\/"/, "the hub links to the sprite studio");
+  assert.match(hub,/href="\.\/play\/"/, "the hub links to the player");
+  assert.match(hub,/href="\.\/workbench\/"/, "the hub links to the workshop");
+  assert.match(hub,/id="intake"/, "the hub accepts dropped files");
+  const rooms = hub.match(/class="room[ "]/g) || [];
+  assert.ok(rooms.length >= 5, `the landing page should be a collection of rooms (found ${rooms.length})`);
+  for (const [,src] of hub.matchAll(/src="(\.\/[^"]+)"/g)) assert.ok(existsSync(path.resolve(root,"app",src)),`hub asset missing: ${src}`);
+
+  const workspace = await readFile(path.join(root,"app/workspace.js"),"utf8");
+  assert.match(workspace,/from "\.\.\/core\/storage\/handoff\.js"/, "dropped files are parked for the converter");
+
+  // The converter moved into its own room but still uses the shared core.
+  const converter = await readFile(path.join(root,"app/convert/index.html"),"utf8");
+  assert.match(converter,/type="module" src="\.\/main\.js"/);
+  assert.match(converter,/id="dropzone"/);
+  assert.match(converter,/id="result-list"/);
+  const main = await readFile(path.join(root,"app/convert/main.js"),"utf8");
+  assert.match(main,/from "\.\.\/\.\.\/core\/convert\/level-file\.js"/, "the converter UI must use the shared conversion core");
+  assert.match(main,/takeHandoffFiles/, "the converter picks up files dropped on the hub");
+
+  // The sprite studio is sprite-first: individual images, dimensions, replacement.
+  const studio = await readFile(path.join(root,"app/textures/index.html"),"utf8");
+  assert.match(studio,/id="sprite-grid"/);
+  assert.match(studio,/id="detail"/);
+  assert.match(studio,/Replace this sprite/);
+  const studioMain = await readFile(path.join(root,"app/textures/main.js"),"utf8");
+  assert.match(studioMain,/extractSprite/, "each sprite is cut out as its own image");
+  assert.match(studioMain,/createSpriteReplacement/, "replacement images are fitted to the sprite slot");
+  assert.match(studioMain,/saveTextureWorkspace/);
+
+  for (const [file, target] of [["app/converter/index.html","../convert/"],["app/workbench/index.html","../"]]) {
+    const text = await readFile(path.join(root,file),"utf8");
+    assert.match(text, new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")), `${file} should lead to ${target}`);
+  }
 });

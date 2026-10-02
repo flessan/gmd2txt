@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f7a4d">
+  <meta name="application-name" content="gmd2txt">
+  <meta name="description" content="Convert Geometry Dash level files both ways: .gmd to .txt level string and .txt level string back to .gmd. Free, private, and entirely offline in your browser.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="../assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+  <link rel="stylesheet" href="../assets/gmd2txt.css">
+  <title>gmd2txt — convert Geometry Dash level files (.gmd ⇄ .txt)</title>
+  <script src="../app-meta.js"></script>
+  <script src="../play/assets/scripts/libs/pako.min.js"></script>
+  <!-- Official level names and songs, shared with the bundled player. -->
+  <script src="../play/assets/scripts/game/allLevels.js"></script>
+  <script>
+    // If the module below never runs (unsupported browser, blocked module load),
+    // say so in plain language instead of leaving a blank page.
+    (() => {
+      const fail = message => {
+        const root = document.getElementById("app-root");
+        if (!root || root.dataset.ready === "yes") return;
+        root.innerHTML = '<div class="fatal"><h1>gmd2txt could not start</h1>' +
+          '<p>Your browser loaded the page but did not run the app. This usually means the browser is too old, or the page was opened as a file instead of from a web address.</p>' +
+          '<p>Open the app from a web address (http:// or https://), then reload.</p>' +
+          '<details><summary>Technical detail</summary><pre></pre></details></div>';
+        const pre = root.querySelector("pre");
+        if (pre) pre.textContent = String(message || "Unknown startup error").slice(0, 600);
+      };
+      window.addEventListener("error", event => fail(event.error?.stack || event.message));
+      window.addEventListener("unhandledrejection", event => fail(event.reason?.stack || event.reason?.message || event.reason));
+      setTimeout(() => fail("The app did not finish starting within 8 seconds."), 8000);
+    })();
+  </script>
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15 6.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4.5 3.5 20h17z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 10v4.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-zip" viewBox="0 0 24 24"><path d="M6 3h12v18H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 3v3m0 2v2m0 2v2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="10.5" y="16" width="3" height="3" rx=".8" fill="currentColor"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.8h4V7m-8 0 .9 12.2h10.2L18 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9z" fill="currentColor"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h11m0 0-3-3m3 3-3 3M20 16H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <div id="app-root">
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="../" aria-label="gmd2txt workspace">
+          <span class="brand-mark"><svg class="icon"><use href="#i-swap"></use></svg></span>
+          <span class="brand-text"><strong>gmd2txt</strong><small>Geometry Dash level file converter</small></span>
+        </a>
+        <nav class="topnav" aria-label="Page">
+          <a class="navlink" href="#help">Help</a>
+          <a class="navlink" href="#saved">Saved files</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap main">
+      <section class="hero">
+        <h1>Convert Geometry Dash levels — both ways.</h1>
+        <p class="lede">
+          Drop a <strong>.gmd</strong> file to get the <strong>.txt</strong> level string inside it, or drop a
+          <strong>.txt</strong> to build a <strong>.gmd</strong>. Nothing is uploaded — everything happens in this browser tab.
+        </p>
+
+        <div id="dropzone" class="drop">
+          <span class="drop-icon"><svg class="icon"><use href="#i-file"></use></svg></span>
+          <span class="drop-title">Drop your level files here</span>
+          <span class="drop-hint">.gmd and .txt · you can drop several at once</span>
+          <span class="drop-actions">
+            <span class="btn primary" data-role="choose">
+              <svg class="icon"><use href="#i-file"></use></svg>Choose files</span>
+            <button type="button" class="btn ghost" id="paste-open">
+              <svg class="icon"><use href="#i-copy"></use></svg>Paste level text</button>
+          </span>
+        </div>
+
+        <p class="samples">
+          <svg class="icon"><use href="#i-sparkle"></use></svg>
+          <label for="sample-select">No file handy? Try a sample level</label>
+          <select id="sample-select" aria-label="Load a sample Geometry Dash level"><option value="">Choose a level…</option></select>
+        </p>
+
+        <ol class="steps" id="steps">
+          <li><span class="step-num">1</span>Drop a <strong>.gmd</strong> or <strong>.txt</strong> level file</li>
+          <li><span class="step-num">2</span>We convert it instantly — nothing to set up</li>
+          <li><span class="step-num">3</span>Copy the text or download the file</li>
+        </ol>
+      </section>
+
+      <section id="results" class="results" aria-live="polite" hidden>
+        <div class="section-head">
+          <h2 id="results-title">Your files</h2>
+          <div class="section-actions">
+            <button type="button" class="btn ghost small" id="download-all" hidden>
+              <svg class="icon"><use href="#i-zip"></use></svg>Download all as .zip</button>
+            <button type="button" class="btn link small" id="clear-results">Clear list</button>
+          </div>
+        </div>
+        <div id="result-list" class="result-list"></div>
+      </section>
+
+      <section id="saved" class="saved">
+        <details id="saved-details">
+          <summary>
+            <svg class="icon"><use href="#i-lock"></use></svg>
+            <span>Saved in this browser <span class="badge" id="saved-count">0</span></span>
+            <small>Your converted files stay on this device so you can grab them again later.</small>
+          </summary>
+          <div class="saved-body">
+            <ul id="saved-list" class="saved-list"></ul>
+            <div class="saved-foot">
+              <span id="saved-size" class="muted small"></span>
+              <button type="button" class="btn link small" id="clear-saved">Delete saved files</button>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section id="help" class="help">
+        <h2>Questions people actually ask</h2>
+        <div class="faq">
+          <details>
+            <summary>What is a .gmd file?</summary>
+            <p>A <strong>.gmd</strong> file is a Geometry Dash level export. It holds the level's data plus its name, creator and song. Tools and mods such as GDShare can import it.</p>
+          </details>
+          <details>
+            <summary>What is a .txt level string?</summary>
+            <p>A <strong>.txt</strong> level string is the raw level text. It usually looks like random letters starting with <code>H4sI…</code> because the game compresses it. It is what tools and modded clients that accept level strings expect, and it is a good plain-text backup of a level.</p>
+          </details>
+          <details>
+            <summary>Is my file uploaded anywhere?</summary>
+            <p>No. There is no server in this app. Your files are read and converted inside your browser tab, and they keep working if you go offline.</p>
+          </details>
+          <details>
+            <summary>Can I convert the other way too?</summary>
+            <p>Yes. Drop a <strong>.txt</strong> file (or paste level text) and you get a <strong>.gmd</strong> file, with the level's name, creator and song filled in automatically when the file contains them.</p>
+          </details>
+          <details>
+            <summary>I dropped a file and nothing happened.</summary>
+            <p>Only level files convert: <strong>.gmd</strong> and <strong>.txt</strong>. A save file such as <code>CCGameManager.dat</code> is a different thing, and so are images, ZIPs and music files. If your file is a save file, open the <a href="../workbench/">advanced workshop</a> instead.</p>
+          </details>
+          <details>
+            <summary>Why is my .txt file so hard to read?</summary>
+            <p>That is normal — level strings are compressed. Open <em>Details</em> on a result and choose <em>Readable text</em> to see the decoded version.</p>
+          </details>
+          <details>
+            <summary>Where did my converted files go?</summary>
+            <p>Downloads go wherever your browser saves downloads. The app also keeps a private copy of your last conversions in this browser's storage (see <a href="#saved">Saved in this browser</a>) so you can download them again. Deleting them there does not touch your original files.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <p class="footer-note">
+          <svg class="icon"><use href="#i-lock"></use></svg>
+          Private by design: no accounts, no uploads, no tracking. Works offline.
+        </p>
+        <nav class="footer-links" aria-label="More tools">
+          <a href="../workbench/">Advanced workshop</a>
+          <span aria-hidden="true">·</span>
+          <span id="version-label">gmd2txt</span>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+  <dialog id="paste-dialog" class="sheet">
+    <form method="dialog" class="sheet-inner" id="paste-form">
+      <div class="sheet-head">
+        <h2>Paste a level string</h2>
+        <button type="button" class="btn icon ghost" data-close aria-label="Close">
+          <svg class="icon"><use href="#i-close"></use></svg></button>
+      </div>
+      <p class="muted">Copy a level string out of Geometry Dash or another tool, paste it below, and press Convert. It usually starts with <code>H4sI</code>, but readable level text works too.</p>
+      <textarea id="paste-text" rows="7" spellcheck="false" placeholder="H4sIAAAAAAAAA…" aria-label="Level string"></textarea>
+      <div class="sheet-actions">
+        <span class="muted small" id="paste-status"></span>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary" id="paste-convert">
+          <svg class="icon"><use href="#i-swap"></use></svg>Convert</button>
+      </div>
+    </form>
+  </dialog>
+
+  <section id="player-overlay" class="player-overlay is-parked" role="dialog" aria-modal="true" aria-label="Level preview" tabindex="-1">
+    <div class="player-bar">
+      <span class="player-title" id="player-title">Level preview</span>
+      <span class="player-status muted small" id="player-status"></span>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost small" id="player-close">
+        <svg class="icon"><use href="#i-close"></use></svg>Close</button>
+    </div>
+    <div class="player-viewport">
+      <div id="player-stage" class="player-stage"></div>
+      <div class="player-loading" id="player-loading">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Starting the bundled Geometry Dash runtime…</p>
+        <small id="player-loading-hint">Levels start by themselves — no extra clicks needed.</small>
+      </div>
+    </div>
+  </section>
+
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <input type="file" id="file-input" accept=".gmd,.txt,text/plain,application/octet-stream" multiple hidden>
+</body>
+</html>

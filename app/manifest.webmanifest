@@ -1,18 +1,34 @@
 {
   "id": "./",
-  "name": "gmd2txt — Geometry Dash level file converter",
-  "short_name": "gmd2txt",
-  "description": "Convert Geometry Dash levels both ways: .gmd to .txt level string and back. Private, offline, and free.",
+  "name": "GMD Workspace \u2014 local Geometry Dash file tools",
+  "short_name": "GMD Workspace",
+  "description": "A local workspace for Geometry Dash files: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and inspect saves. Nothing is uploaded.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
-  "background_color": "#f1f7f3",
-  "theme_color": "#0f7a4d",
-  "categories": ["productivity", "utilities"],
+  "background_color": "#0a120f",
+  "theme_color": "#0b1310",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
-    { "src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

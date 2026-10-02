@@ -16,10 +16,11 @@ import {
   songLabel,
   uniqueFileName,
   LEVEL_FILE_LIMIT_BYTES
-} from "../core/convert/level-file.js";
-import { writeZipBlob } from "../core/textures/zip.js";
-import { createLevel, deleteLevel, getLevel, getLibrarySummaries } from "../core/storage/database.js";
-import { PlayerAdapter, playerRuntimeUrl } from "../core/runtime/player-adapter.js";
+} from "../../core/convert/level-file.js";
+import { writeZipBlob } from "../../core/textures/zip.js";
+import { createLevel, deleteLevel, getLevel, getLibrarySummaries } from "../../core/storage/database.js";
+import { PlayerAdapter, playerRuntimeUrl } from "../../core/runtime/player-adapter.js";
+import { takeHandoffFiles } from "../../core/storage/handoff.js";
 
 const meta = globalThis.GMDPLAYER_META || {};
 const officialSongs = Array.isArray(globalThis.allLevels) ? globalThis.allLevels : null;
@@ -205,6 +206,28 @@ async function addFiles(fileList) {
   revealResults();
 }
 
+/** Picks up files dropped on the workspace landing page (it parks them for us). */
+async function convertHandoffFiles() {
+  let parked = [];
+  try {
+    parked = await takeHandoffFiles();
+  } catch (_) {
+    return false;
+  }
+  if (!parked.length) return false;
+  hideSteps();
+  for (const file of parked) {
+    const blob = new Blob([file.data], { type: file.type || "application/octet-stream" });
+    const entry = { id: String(state.nextId++), status: "busy", file: blob, name: file.name };
+    state.entries.unshift(entry);
+    render();
+    await processEntry(entry, () => blob.text(), { filename: file.name, size: blob.size, mimeType: blob.type });
+  }
+  toast(`Converted ${parked.length} file${parked.length === 1 ? "" : "s"} you dropped on the workspace.`);
+  revealResults();
+  return true;
+}
+
 async function processEntry(entry, readText, fileInfo) {
   try {
     const text = await readText();
@@ -249,7 +272,7 @@ async function loadSample(index) {
   const song = officialSongs?.[index];
   const levelName = song?.[1] || `Sample level ${index + 1}`;
   entry.name = `${levelName} (sample)`;
-  const url = `./play/assets/levels/${index + 1}.txt`;
+  const url = `../play/assets/levels/${index + 1}.txt`;
   await processEntry(entry, async () => {
     const response = await fetch(url);
     if (!response.ok) throw new Error("The bundled sample level could not be loaded.");
@@ -1051,15 +1074,15 @@ function fillSamples() {
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   try {
-    const script = new URL("../sw.js", location.href);
-    const scope = new URL("../", location.href);
+    const script = new URL("../../sw.js", location.href);
+    const scope = new URL("../../", location.href);
     await navigator.serviceWorker.register(script.href, { scope: scope.pathname });
   } catch (_) {
     // Offline support is a bonus; the converter works without it.
   }
 }
 
-function start() {
+async function start() {
   dom.version.textContent = `gmd2txt ${meta.version || ""}`.trim();
   dom.root.dataset.ready = "yes";
   fillSamples();
@@ -1067,6 +1090,7 @@ function start() {
   render();
   refreshHistory();
   registerServiceWorker();
+  await convertHandoffFiles();
 }
 
 start();
