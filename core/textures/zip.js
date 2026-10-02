@@ -162,7 +162,8 @@ export async function writeZipBlob(entries, options = {}) {
   const list = entries instanceof Map ? [...entries] : Object.entries(entries);
   const maxEntries = options.maxEntries ?? 10000;
   const maxTotalBytes = options.maxTotalBytes ?? 1024 * 1024 * 1024;
-  if (list.length > maxEntries || list.length > 65535) throw new Error("Too many files for project archive export.");
+  const label = options.label || "Project archive";
+  if (list.length > maxEntries || list.length > 65535) throw new Error(`Too many files for ${label} export.`);
   const local = [], central = [], checksumMap = options.checksums || new Map();
   let offset = 0, totalBytes = 0;
   for (let index = 0; index < list.length; index++) {
@@ -172,7 +173,7 @@ export async function writeZipBlob(entries, options = {}) {
     const content = raw instanceof Blob ? raw : raw instanceof Uint8Array ? new Blob([raw]) : raw instanceof ArrayBuffer ? new Blob([raw]) : new Blob([String(raw)]);
     const size = content.size;
     totalBytes += size;
-    if (size > 0xffffffff || totalBytes > maxTotalBytes || offset + size > 0xffffffff) throw new Error("Project archive exceeds the supported 1 GiB ZIP32 size limit.");
+    if (size > 0xffffffff || totalBytes > maxTotalBytes || offset + size > 0xffffffff) throw new Error(`${label} exceeds the supported 1 GiB ZIP32 size limit.`);
     const nameBytes = encoder.encode(name);
     let checksum = checksumMap.get(name);
     if (checksum === undefined) checksum = (await checksumContent(content, { signal: options.signal })).crc32;

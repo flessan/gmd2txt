@@ -6,7 +6,7 @@ import { ImportSession } from "../core/import/import-session.js";
 import { importLevel } from "../core/import/handlers/level-importer.js";
 
 globalThis.pako = { ungzip: bytes => gunzipSync(bytes), inflate: bytes => inflateSync(bytes) };
-const levelString = "k1,Sample Level,k2,456,k3,A description,k8,0;1,1,2,30,3,15,unknownField,preserved;";
+const levelString = "k1,456,k2,Sample Level,k3,A description,k8,0;1,1,2,30,3,15,unknownField,preserved;";
 const compressed = gzipSync(levelString).toString("base64");
 const file = (name, text) => ({ name, size: text.length, text: async () => text, slice: () => ({ text: async () => text.slice(0, 256) }) });
 

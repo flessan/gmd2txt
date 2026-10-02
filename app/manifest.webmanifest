@@ -1,18 +1,34 @@
 {
   "id": "./",
-  "name": "GMDPlayer — Geometry Dash workstation",
-  "short_name": "GMDPlayer",
-  "description": "A local-first workstation for Geometry Dash files.",
-  "start_url": "./#/home",
+  "name": "GMD Workspace \u2014 local Geometry Dash file tools",
+  "short_name": "GMD Workspace",
+  "description": "One page of local Geometry Dash tools: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and read saves. Nothing is uploaded.",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
-  "background_color": "#f4f3ee",
-  "theme_color": "#f4f3ee",
-  "categories": ["productivity", "utilities"],
+  "background_color": "#0a120f",
+  "theme_color": "#0b1310",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
-    { "src": "./assets/icons/gmdplayer-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./assets/icons/gmdplayer-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

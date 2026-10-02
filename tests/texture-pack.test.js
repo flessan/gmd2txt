@@ -67,7 +67,7 @@ test("texture imports group PNG and PLIST and preserve incomplete sheets", async
   const doc = await importTextureFiles([file("sprites.png", png), file("sprites.plist", new TextEncoder().encode(plist)), file("orphan.png", png)]);
   assert.equal(Object.keys(doc.sheets).length, 2);
   assert.equal(doc.sheets.sprites.parsed.frames["hero.png"].frame.width, 5);
-  assert.ok(doc.sheets.orphan.errors.includes("PLIST metadata is missing."));
+  assert.ok(doc.sheets.orphan.errors.includes("Sprite metadata is missing (a .plist or atlas .json next to the PNG)."));
   assert.equal(doc.sheets.sprites.source.png[0], 137);
   assert.equal(doc.sourceFiles.length,3);assert.ok(doc.sourceFiles.every(source=>/^sha256-chunked-v1:/.test(source.contentHash)));
 });
@@ -76,7 +76,7 @@ test("exact-slot size mismatch is rejected from PNG headers before decoding imag
   const frame = { name: "hero", frame: { x: 1, y: 2, width: 5, height: 6 }, rotated: false };
   await assert.rejects(
     createSpriteReplacement(png, frame, png, "exact"),
-    /Exact replacement requires 5×6px/
+    /An exact replacement must already be 5×6px/
   );
 });
 

@@ -1,4 +1,5 @@
 import { parsePlist } from "./plist-parser.js";
+import { parseJsonAtlas } from "./json-atlas-parser.js";
 import { hashFileContent } from "../workbench/content-hash.js";
 import { readZip } from "./zip.js";
 
@@ -49,20 +50,23 @@ function displayStem(path) { return path.replace(/\\/g, "/").split("/").pop().re
 function safeFilename(name) { return String(name).replace(/[\\/]/g, "_").replace(/[\0-\x1f]/g, "").slice(0, 180) || "texture"; }
 
 function pairFiles(entries, packName, sourceType, sourceFiles) {
-  const candidates = [...entries.entries()].filter(([path]) => /\.(png|plist)$/i.test(path));
+  // PNG + metadata pairs, where the metadata is either an XML PLIST or the JSON
+  // atlas the bundled runtime ships.
+  const candidates = [...entries.entries()].filter(([path]) => /\.(png|plist|json)$/i.test(path));
   const byStem = new Map();
   for (const [path, data] of candidates) {
     const key = stem(path);
     if (!byStem.has(key)) byStem.set(key, {});
     const record = byStem.get(key);
     if (/\.png$/i.test(path)) record.png = { path, data };
-    else record.plist = { path, data };
+    else if (/\.plist$/i.test(path)) record.plist = { path, data };
+    else record.json = { path, data };
   }
   const sheets = Object.create(null);
   for (const [key, pair] of byStem) {
     const referencePath = pair.png?.path || pair.plist?.path || key;
     const id = safeFilename(referencePath.replace(/\.[^.]+$/, ""));
-    const sheet = { id, name: displayStem(referencePath), source: { pngPath: pair.png?.path || null, plistPath: pair.plist?.path || null, png: pair.png?.data || null, plist: pair.plist?.data || null }, parsed: { width: null, height: null, plist: null, frames: {} }, errors: [] };
+    const sheet = { id, name: displayStem(referencePath), source: { pngPath: pair.png?.path || null, plistPath: pair.plist?.path || null, jsonPath: pair.json?.path || null, png: pair.png?.data || null, plist: pair.plist?.data || null }, parsed: { width: null, height: null, plist: null, frames: {} }, errors: [] };
     if (pair.png) { try { Object.assign(sheet.parsed, getPngDimensions(pair.png.data)); } catch (error) { sheet.errors.push(error.message); } }
     if (pair.plist) {
       try {
@@ -73,10 +77,22 @@ function pairFiles(entries, packName, sourceType, sourceFiles) {
           const rect = frame.frame;
           if (!Number.isInteger(rect.x) || !Number.isInteger(rect.y) || !Number.isInteger(rect.width) || !Number.isInteger(rect.height) || rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 || rect.x + rect.width > sheet.parsed.width || rect.y + rect.height > sheet.parsed.height) sheet.errors.push(`Sprite frame is outside atlas bounds: ${frame.name}`);
         }
-      } catch (error) { sheet.errors.push(`PLIST: ${error.message}`); }
+        } catch (error) { sheet.errors.push(`PLIST: ${error.message}`); }
+    }
+    if (!sheet.parsed.plist && pair.json) {
+      try {
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(pair.json.data);
+        const atlas = parseJsonAtlas(text);
+        sheet.parsed.plist = { frames: atlas.frames, meta: atlas.meta };
+        sheet.parsed.frames = atlas.frames;
+        if (sheet.parsed.width && sheet.parsed.height) for (const frame of Object.values(sheet.parsed.frames)) {
+          const rect = frame.frame;
+          if (!Number.isInteger(rect.x) || !Number.isInteger(rect.y) || !Number.isInteger(rect.width) || !Number.isInteger(rect.height) || rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 || rect.x + rect.width > sheet.parsed.width || rect.y + rect.height > sheet.parsed.height) sheet.errors.push(`Sprite frame is outside atlas bounds: ${frame.name}`);
+        }
+      } catch (error) { sheet.errors.push(`JSON atlas: ${error.message}`); }
     }
     if (!pair.png) sheet.errors.push("PNG sheet is missing.");
-    if (!pair.plist) sheet.errors.push("PLIST metadata is missing.");
+    if (!pair.plist && !pair.json) sheet.errors.push("Sprite metadata is missing (a .plist or atlas .json next to the PNG).");
     sheets[id] = sheet;
   }
   return {
