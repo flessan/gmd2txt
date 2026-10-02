@@ -20,14 +20,13 @@ import {
 import { writeZipBlob } from "../../core/textures/zip.js";
 import { createLevel, deleteLevel, getLevel, getLibrarySummaries } from "../../core/storage/database.js";
 import { PlayerAdapter, playerRuntimeUrl } from "../../core/runtime/player-adapter.js";
-import { takeHandoffFiles } from "../../core/storage/handoff.js";
 
 const meta = globalThis.GMDPLAYER_META || {};
 const officialSongs = Array.isArray(globalThis.allLevels) ? globalThis.allLevels : null;
 const HISTORY_LIMIT = 12;
 
 const dom = {
-  root: document.querySelector("#app-root"),
+  root: document.querySelector("#workspace-root"),
   dropzone: document.querySelector("#dropzone"),
   fileInput: document.querySelector("#file-input"),
   sampleSelect: document.querySelector("#sample-select"),
@@ -41,7 +40,6 @@ const dom = {
   savedList: document.querySelector("#saved-list"),
   savedSize: document.querySelector("#saved-size"),
   clearSaved: document.querySelector("#clear-saved"),
-  version: document.querySelector("#version-label"),
   pasteDialog: document.querySelector("#paste-dialog"),
   pasteForm: document.querySelector("#paste-form"),
   pasteText: document.querySelector("#paste-text"),
@@ -206,29 +204,8 @@ async function addFiles(fileList) {
   revealResults();
 }
 
-/** Picks up files dropped on the workspace landing page (it parks them for us). */
-async function convertHandoffFiles() {
-  let parked = [];
-  try {
-    parked = await takeHandoffFiles();
-  } catch (_) {
-    return false;
-  }
-  if (!parked.length) return false;
-  hideSteps();
-  for (const file of parked) {
-    const blob = new Blob([file.data], { type: file.type || "application/octet-stream" });
-    const entry = { id: String(state.nextId++), status: "busy", file: blob, name: file.name };
-    state.entries.unshift(entry);
-    render();
-    await processEntry(entry, () => blob.text(), { filename: file.name, size: blob.size, mimeType: blob.type });
-  }
-  toast(`Converted ${parked.length} file${parked.length === 1 ? "" : "s"} you dropped on the workspace.`);
-  revealResults();
-  return true;
-}
-
-async function processEntry(entry, readText, fileInfo) {
+async function processEntry(entry, readText, fileInfo, options = {}) {
+  const quiet = options.quiet === true;
   try {
     const text = await readText();
     const conversion = await convertLevelText({
@@ -241,18 +218,19 @@ async function processEntry(entry, readText, fileInfo) {
     if (!conversion.ok) {
       entry.status = "error";
       entry.error = conversion;
-      render();
+      if (!quiet) render();
       return;
     }
     entry.conversion = conversion;
     entry.outputName = uniqueFileName(conversion.output.filename, state.usedNames);
     entry.status = "ready";
-    render();
-    revealResults();
+    if (!quiet) render();
+    if (!quiet) revealResults();
     // Boot the preview runtime in the background and pre-load this level, so
     // "Play preview" opens straight into gameplay.
     scheduleWarmRuntime(900, entry);
-    rememberConversion(entry, fileInfo);
+    if (quiet) await buildEntryDocument(entry, fileInfo);
+    else rememberConversion(entry, fileInfo);
   } catch (error) {
     entry.status = "error";
     entry.error = {
@@ -260,7 +238,7 @@ async function processEntry(entry, readText, fileInfo) {
       message: error?.friendly || "This file could not be read.",
       hint: error?.message && error.message !== "too-large" ? error.message : "Try again, or convert a different file."
     };
-    render();
+    if (!quiet) render();
   }
 }
 
@@ -272,7 +250,7 @@ async function loadSample(index) {
   const song = officialSongs?.[index];
   const levelName = song?.[1] || `Sample level ${index + 1}`;
   entry.name = `${levelName} (sample)`;
-  const url = `../play/assets/levels/${index + 1}.txt`;
+  const url = `./play/assets/levels/${index + 1}.txt`;
   await processEntry(entry, async () => {
     const response = await fetch(url);
     if (!response.ok) throw new Error("The bundled sample level could not be loaded.");
@@ -282,6 +260,46 @@ async function loadSample(index) {
     mimeType: "text/plain",
     fieldsHint: { name: levelName, author: song?.[3]?.[0] || "", officialSongIndex: index }
   });
+}
+
+/**
+ * Converts level text from the clipboard (the workspace shell routes Ctrl+V here).
+ */
+function addPastedText(text) {
+  if (!text || text.length < 24) return false;
+  const entry = { id: String(state.nextId++), status: "busy", file: null, name: "Pasted level text" };
+  state.entries.unshift(entry);
+  hideSteps();
+  render();
+  processEntry(entry, async () => text, { filename: "pasted-level.txt", mimeType: "text/plain" });
+  toast("Converted the level text from your clipboard.");
+  return true;
+}
+
+/**
+ * Loads one of the levels bundled with the runtime and starts it immediately.
+ * Used by the Play room: no result card is added, the game just starts.
+ */
+async function playLevel(index) {
+  const song = officialSongs?.[index];
+  const levelName = song?.[1] || `Bundled level ${Number(index) + 1}`;
+  const entry = { id: String(state.nextId++), status: "busy", file: null, name: `${levelName} (bundled)` };
+  const url = `./play/assets/levels/${Number(index) + 1}.txt`;
+  await processEntry(entry, async () => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("This bundled level could not be loaded.");
+    return response.text();
+  }, {
+    filename: `${sanitizeFileName(levelName, "level")}.txt`,
+    mimeType: "text/plain",
+    fieldsHint: { name: levelName, author: song?.[3]?.[0] || "", officialSongIndex: Number(index) }
+  }, { quiet: true });
+  if (entry.status !== "ready") {
+    toast("That bundled level could not be played.", "error");
+    return false;
+  }
+  await playEntry(entry);
+  return true;
 }
 
 /** Fields remembered for a level so the .gmd can be rebuilt from storage. */
@@ -296,19 +314,27 @@ function fieldsFromMetadata(metadata, song) {
   };
 }
 
-async function rememberConversion(entry, fileInfo) {
+async function buildEntryDocument(entry, fileInfo) {
   try {
-    const document_ = await buildLevelDocument(entry.conversion, {
+    entry.document = await buildLevelDocument(entry.conversion, {
       filename: fileInfo.filename,
       size: fileInfo.size ?? null,
       mimeType: fileInfo.mimeType || ""
     });
-    entry.document = document_;
+  } catch (_) {
+    entry.document = entry.document || null;
+  }
+  return entry.document;
+}
+
+async function rememberConversion(entry, fileInfo) {
+  try {
+    const document_ = await buildEntryDocument(entry, fileInfo);
+    if (!document_) return;
     await createLevel(document_, { duplicateMode: "update" });
     await refreshHistory();
   } catch (_) {
     // Storage is a convenience; the conversion itself already succeeded.
-    entry.document = entry.document || null;
   }
 }
 
@@ -457,7 +483,7 @@ function cardMarkup(entry) {
   if (entry.status === "error") {
     const error = entry.error || {};
     const extra = error.code === "save-file"
-      ? `<a class="btn ghost small" href="./workbench/">Open the advanced workshop</a>`
+      ? `<a class="btn ghost small" href="#save">Open the save file reader</a>`
       : "";
     return `<article class="card is-error">
       <div class="card-body">
@@ -889,40 +915,9 @@ function bindEvents() {
   });
   dom.dropzone.querySelector("[data-role=choose]").addEventListener("click", choose);
 
-  let dragDepth = 0;
-  const setOver = value => dom.dropzone.classList.toggle("is-over", value);
-  for (const type of ["dragenter", "dragover"]) {
-    window.addEventListener(type, event => {
-      if (![...(event.dataTransfer?.types || [])].includes("Files")) return;
-      event.preventDefault();
-      if (type === "dragenter") dragDepth++;
-      setOver(true);
-    });
-  }
-  window.addEventListener("dragleave", () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) setOver(false); });
-  window.addEventListener("dragover", event => event.preventDefault());
-  window.addEventListener("drop", event => {
-    if (!event.dataTransfer?.files?.length) return;
-    if (document.querySelector("dialog[open]") || playerIsOpen()) return;
-    event.preventDefault();
-    dragDepth = 0;
-    setOver(false);
-    addFiles(event.dataTransfer.files);
-  });
-
-  // Pasting level text anywhere on the page converts it straight away.
-  window.addEventListener("paste", event => {
-    const target = event.target;
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
-    const text = event.clipboardData?.getData("text");
-    if (!text || text.length < 24) return;
-    const entry = { id: String(state.nextId++), status: "busy", file: null, name: "Pasted level text" };
-    state.entries.unshift(entry);
-    hideSteps();
-    render();
-    processEntry(entry, async () => text, { filename: "pasted-level.txt", mimeType: "text/plain" });
-    toast("Converted the level text from your clipboard.");
-  });
+  // Dropping and pasting are routed by the workspace shell (`workspace.js`),
+  // which knows whether a file belongs to the converter, the studio or the save
+  // reader. The converter only says how a file is converted.
 
   dom.resultList.addEventListener("click", async event => {
     const button = event.target.closest("[data-action]");
@@ -1071,26 +1066,25 @@ function fillSamples() {
   dom.sampleSelect.insertAdjacentHTML("beforeend", options);
 }
 
-async function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    const script = new URL("../../sw.js", location.href);
-    const scope = new URL("../../", location.href);
-    await navigator.serviceWorker.register(script.href, { scope: scope.pathname });
-  } catch (_) {
-    // Offline support is a bonus; the converter works without it.
-  }
-}
-
 async function start() {
-  dom.version.textContent = `gmd2txt ${meta.version || ""}`.trim();
   dom.root.dataset.ready = "yes";
   fillSamples();
   bindEvents();
   render();
   refreshHistory();
-  registerServiceWorker();
-  await convertHandoffFiles();
 }
 
 start();
+
+/* The workspace shell owns navigation, drops, pastes and the drop box between
+   rooms; this module exposes the actions it needs. */
+export const converterApi = {
+  addFiles,
+  addPastedText,
+  playLevel,
+  refreshHistory,
+  warmUp: () => scheduleWarmRuntime(0),
+  isPlaying: playerIsOpen,
+  toast
+};
+window.__gmdConvert = converterApi;

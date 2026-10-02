@@ -5,7 +5,6 @@ import zlib from "node:zlib";
 import { fitRect, SPRITE_FIT_MODES } from "../core/textures/sprites.js";
 import { parseJsonAtlas } from "../core/textures/json-atlas-parser.js";
 import { importTextureFiles, getSpriteEntries } from "../core/textures/texture-pack.js";
-import { putHandoffFiles, takeHandoffFiles, peekHandoffCount, HANDOFF_MAX_BYTES } from "../core/storage/handoff.js";
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -43,16 +42,6 @@ function makePng(width, height) {
   ]);
 }
 const fileLike = (name, bytes, type) => ({ name, type, size: bytes.length, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
-
-function memoryBackend() {
-  const rows = [];
-  return {
-    rows,
-    async put(records) { rows.push(...records.map(record => ({ ...record, id: rows.length + 1 }))); },
-    async drain() { return rows.splice(0, rows.length); },
-    async count() { return rows.length; }
-  };
-}
 
 /* -------------------------------------------------- replacing a sprite image */
 
@@ -134,39 +123,4 @@ test("a PNG plus its atlas JSON imports as one sheet of individual sprites", asy
   const sprites = getSpriteEntries(pack);
   assert.deepEqual(sprites.map(entry => entry.frame.name).sort(), ["cube.png", "spike.png"]);
   assert.equal(sprites.find(entry => entry.frame.name === "spike.png").frame.rotated, true);
-});
-
-/* ------------------------------------------------------------- file hand-off */
-
-test("dropped files are parked for the converter and drained exactly once", async () => {
-  const backend = memoryBackend();
-  const bytes = new TextEncoder().encode("1,1,2,3;");
-  const count = await putHandoffFiles([{ name: "level.txt", type: "text/plain", data: bytes.buffer, size: bytes.length }], { backend });
-  assert.equal(count, 1);
-  assert.equal(await peekHandoffCount({ backend }), 1);
-
-  const drained = await takeHandoffFiles({ backend });
-  assert.equal(drained.length, 1);
-  assert.equal(drained[0].name, "level.txt");
-  assert.equal(drained[0].size, bytes.length);
-  assert.equal(await peekHandoffCount({ backend }), 0, "the box is emptied after reading");
-  assert.deepEqual(await takeHandoffFiles({ backend }), []);
-});
-
-test("the hand-off refuses more than it can carry and never keeps junk entries", async () => {
-  const backend = memoryBackend();
-  await assert.rejects(
-    () => putHandoffFiles([{ name: "huge.gmd", data: new ArrayBuffer(HANDOFF_MAX_BYTES + 1) }], { backend }),
-    /too much to hand over/
-  );
-  assert.equal(await peekHandoffCount({ backend }), 0);
-  assert.equal(await putHandoffFiles([], { backend }), 0);
-  assert.equal(await putHandoffFiles([{ name: "nothing.txt" }], { backend }), 0, "entries without data are skipped");
-});
-
-test("hand-off names cannot escape into paths", async () => {
-  const backend = memoryBackend();
-  await putHandoffFiles([{ name: "../../etc/passwd", data: new ArrayBuffer(4) }], { backend });
-  const [file] = await takeHandoffFiles({ backend });
-  assert.equal(file.name, ".._.._etc_passwd");
 });

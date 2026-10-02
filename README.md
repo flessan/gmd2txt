@@ -71,59 +71,64 @@ Any current Chrome, Edge, Firefox or Safari. Conversion prefers the built-in
 does not have them. Copying falls back to the legacy `execCommand` path when the async clipboard API
 is unavailable, and the whole app is usable from a phone.
 
-## Advanced workshop (optional)
+## One page, five rooms
 
-Everything that is not part of the one-file conversion lives behind the **Advanced workshop** link —
-it is the previous GMDPlayer workbench, unchanged, at `/app/workbench/`:
+The workspace is a single page (`/app/`) with a single stylesheet. There is no second page to load
+and no second stylesheet: the rooms are sections of the same document, switched from the menu at the
+top (or with the number keys).
 
-* **Save explorer** — decode `CCGameManager.dat` / `CCLocalLevels.dat`, browse local levels and
-  custom songs, mask sensitive fields, export read-only decoded views.
-* **Texture pack editor** — import PNG/PLIST sprite sheets or ZIP packs, replace sprites, export
-  sheets, merge or repack atlases.
-* **Songs & audio** — local audio library with per-level overrides.
-* **Projects & backups** — `.gmdproject` archives with checksummed restore.
+| Room | What it does |
+| --- | --- |
+| **Convert files** | `.gmd` ⇄ `.txt`, both ways, in batches, with a preview of what is inside |
+| **Sprite studio** | every sprite in a texture pack as its own picture, with pixel sizes, and a replacement image fitted into the original slot (the saved packs *are* the texture workspaces) |
+| **Play a level** | the 22 bundled levels run in the bundled runtime, inside the page |
+| **Saved files** | the conversions kept in this browser, ready to download again |
+| **Save file reader** | read `CCGameManager.dat` — stats, coins, demons, level progress — with ids masked and nothing written back |
 
-It is deliberately kept out of the main flow: the converter is the product, the workshop is the
-power-user drawer. `/app/converter/` (the original one-file extractor) now redirects to the converter.
+Dropping a file anywhere routes it by type: a level goes to the converter, a texture pack to the
+studio, a `.dat` to the save reader.
 
 ## Project layout
 
 ```
 app/
-  index.html          the converter (single screen, no build step)
-  main.js             converter UI: converting, results, storage, preview player
-  assets/gmd2txt.css  converter styles (light + dark, no external fonts)
-  workbench/          the advanced GMDPlayer workshop (index.html, main.js, workbench.css)
-  converter/          redirect for the old extractor URL
-  play/               the preserved Geometry Dash runtime + its postMessage bridge
+  index.html            the whole workspace: one page, five rooms
+  workspace.js          the shell: rooms, dropping/pasting, storage summary, shortcuts
+  views/convert.js      converter room (uses core/convert/level-file.js)
+  views/textures.js     sprite studio room (uses core/textures/*)
+  views/savefile.js     save reader room (uses core/saves/save-decoder.js)
+  assets/workspace.css  the only stylesheet
+  play/                 the preserved Geometry Dash runtime + its postMessage bridge
 core/
   convert/level-file.js   the whole conversion core: read, detect, scan, write (pure, tested)
-  documents/ import/ inspector/ runtime/ storage/ ...   shared modules used by both UIs
-sw.js                 service worker: caches app code so the converter works offline
+  textures/ saves/ documents/ storage/ runtime/ ...   shared modules the rooms use
+sw.js                 service worker: caches the workspace so it works offline
 tests/                Node test suite (no browser needed)
 ```
 
 `core/convert/level-file.js` is the single source of truth for level-file handling: text in, text
-out, no DOM and no storage. `app/main.js` only formats results and talks to people; the workshop
-reuses the same storage schema, so a level converted on the front page appears in the Library there.
+out, no DOM and no storage. `app/views/convert.js` only formats results and talks to people;
+the other rooms reuse the same storage schema, so a level converted in the converter room appears in
+*Saved files* straight away.
 
 ## Development
 
 ```sh
 node --experimental-default-type=module --test     # 66 tests
-node --check app/main.js                           # syntax check any module
+node --check app/workspace.js                      # syntax check any module
 ```
 
 Coverage includes real bundled level exports (`.txt` → `.gmd` → `.txt` round trips that compare the
 payload byte-for-byte), hand-written and standard-plist `.gmd` wrappers, XML entity handling, NUL
 padding, URL-safe base64, the pako fallback, friendly failure codes (save files, truncated data,
-oversized files), level scanning, song resolution, Library documents, storage migrations and the
-workshop's existing suites.
+oversized files), level scanning, song resolution, Library documents, storage migrations, sprite
+replacement and fit modes, JSON/plist atlas parsing, save decoding and the single-page structure.
 
 A browser checklist (headless Chrome, not part of the repo) covers: first paint with no console
 errors, dropping a real level, pasting a level string, the bundled sample levels, downloads landing
-on disk and containing the payload, copy-to-clipboard, dark mode, a phone-width layout without
-horizontal overflow, the offline reload, the save-file error path, and the workshop still booting.
+on disk and containing the payload, the sprite studio (individual sprites, pixel sizes, replacing an
+image, undo), playing a bundled level, the save reader, a phone-width layout without horizontal
+overflow and the offline reload.
 
 ## Known limitations
 
@@ -134,10 +139,10 @@ horizontal overflow, the offline reload, the save-file error path, and the works
 * Official song names come from the bundled `allLevels.js` list; custom (Newgrounds) songs are left
   as `Custom song #<id>` because naming them would require a network lookup, which this app does
   not do.
-* Levels are stored with a light parse (header + object count). The advanced workshop's inspector
-  re-parses a level string on demand for full object/trigger statistics.
-* Save files (`CCGameManager.dat`) are intentionally out of the converter's scope — they are handled
-  by the workshop's save explorer instead.
+* Levels are stored with a light parse (header + object count); `core/inspector/level-inspector.js`
+  can re-parse one on demand for full object/trigger statistics.
+* Save files (`CCGameManager.dat`) are out of the converter's scope on purpose: the *Save file
+  reader* room reads them and never writes them back.
 * The gameplay preview loads the bundled runtime; it is a bonus, and playback fidelity depends on
   that runtime (and on the browser's WebGL/audio support), not on this converter. The first preview on
   a cold page still waits a few seconds for that runtime to boot; previews after it start instantly.

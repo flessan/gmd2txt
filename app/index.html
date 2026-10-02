@@ -5,21 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1310">
   <meta name="application-name" content="GMD Workspace">
-  <meta name="description" content="A local workspace for Geometry Dash files: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and dig into saves. Nothing is uploaded.">
+  <meta name="description" content="A local workspace for Geometry Dash files: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and read saves. Nothing is uploaded.">
   <meta name="color-scheme" content="dark">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
-  <link rel="stylesheet" href="./assets/workspace.css">
   <title>GMD Workspace — local tools for Geometry Dash files</title>
+  <link rel="stylesheet" href="./assets/workspace.css">
   <script src="./app-meta.js"></script>
+  <!-- The bundled runtime ships its own inflate + the official level names. -->
+  <script src="./play/assets/scripts/libs/pako.min.js"></script>
+  <script src="./play/assets/scripts/game/allLevels.js"></script>
   <script>
     // If the module below never runs, say so in plain language instead of a blank page.
     (() => {
       const fail = message => {
-        const root = document.getElementById("hub-root");
+        const root = document.getElementById("workspace-root");
         if (!root || root.dataset.ready === "yes") return;
-        const box = document.getElementById("hub-fatal");
+        const box = document.getElementById("workspace-fatal");
         if (!box) return;
         box.hidden = false;
         const pre = box.querySelector("pre");
@@ -37,116 +40,362 @@
     <symbol id="w-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></symbol>
     <symbol id="w-arrow" viewBox="0 0 24 24"><path d="M5 12h12m0 0-4.5-4.5M17 12l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="w-key" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15 6.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4.5 3.5 20h17z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 10v4.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-zip" viewBox="0 0 24 24"><path d="M6 3h12v18H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 3v3m0 2v2m0 2v2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="10.5" y="16" width="3" height="3" rx=".8" fill="currentColor"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.8h4V7m-8 0 .9 12.2h10.2L18 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9z" fill="currentColor"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h11m0 0-3-3m3 3-3 3M20 16H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="s-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="s-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="s-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m5 17 5-5 3.5 3.5L16 13l3 3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.4" fill="currentColor"/></symbol>
+    <symbol id="s-swap" viewBox="0 0 24 24"><path d="M4 8h11m0 0-3-3m3 3-3 3M20 16H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="s-undo" viewBox="0 0 24 24"><path d="M9 8H5V4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 8a8 8 0 1 1-1 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   </svg>
 
-  <div id="hub-root" data-ready="no" class="cabinet">
+  <div id="workspace-root" data-ready="no" class="cabinet">
     <header class="cabinet-top">
       <div class="wrap cabinet-top-inner">
-        <a class="wordmark" href="./">
+        <a class="wordmark" href="#home">
           <span class="wordmark-cube" aria-hidden="true"></span>
           <span class="wordmark-text"><strong>GMD WORKSPACE</strong><small>local tools · nothing uploaded</small></span>
         </a>
         <nav class="cabinet-nav" aria-label="Workspace">
-          <a href="./workbench/">Full workspace</a>
+          <a href="#convert" data-view-link="convert">Convert</a>
+          <a href="#textures" data-view-link="textures">Sprites</a>
+          <a href="#play" data-view-link="play">Play</a>
+          <a href="#saved" data-view-link="saved">Saved</a>
+          <a href="#save" data-view-link="save">Save file</a>
           <a href="https://github.com/flessan/gmd2txt" rel="noreferrer">Source</a>
         </nav>
       </div>
     </header>
 
     <main class="wrap cabinet-main">
-      <section class="intake" id="intake" aria-label="Convert a dropped file">
-        <div class="intake-slot" aria-hidden="true">
-          <img src="./play/assets/sprites/import.png" alt="" width="46" height="46">
-        </div>
-        <div class="intake-copy">
-          <strong>Drop a <code>.gmd</code> or <code>.txt</code> anywhere on this page</strong>
-          <small>It opens straight in Convert files — or paste a level string with <kbd>Ctrl</kbd>+<kbd>V</kbd>. You can also just pick a room below.</small>
-        </div>
-        <a class="intake-go" href="./convert/">Convert files<span class="intake-arrow" aria-hidden="true"></span></a>
+      <!-- ------------------------------------------------------------- home -->
+      <section class="view" id="view-home" data-view="home" aria-label="Workspace">
+        <section class="intake" id="intake" aria-label="Drop a file">
+          <div class="intake-slot" aria-hidden="true">
+            <img src="./play/assets/sprites/import.png" alt="" width="46" height="46">
+          </div>
+          <div class="intake-copy">
+            <strong>Drop any file anywhere on this page</strong>
+            <small>Levels convert, texture packs open in the studio, saves are read — the workspace picks the right tool. You can also paste a level string with <kbd>Ctrl</kbd>+<kbd>V</kbd>.</small>
+          </div>
+          <a class="intake-go" href="#convert">Open the converter<span class="intake-arrow" aria-hidden="true"></span></a>
+        </section>
+
+        <section class="rooms" aria-labelledby="rooms-title">
+          <h1 id="rooms-title" class="rooms-title">Pick a room</h1>
+          <div class="room-grid">
+            <a class="room" href="#convert" data-room="1">
+              <span class="room-key" aria-hidden="true">1</span>
+              <span class="room-art"><img src="./play/assets/sprites/import.png" alt="" width="54" height="54"></span>
+              <span class="room-body">
+                <strong>Convert files</strong>
+                <small><code>.gmd</code> ⇄ <code>.txt</code>, both directions, in batches, with a preview of what is inside the level.</small>
+                <span class="room-tags"><em>drop</em><em>paste</em><em>batch</em></span>
+              </span>
+              <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
+            </a>
+
+            <a class="room room-sprites" href="#textures" data-room="2">
+              <span class="room-key" aria-hidden="true">2</span>
+              <span class="room-art"><img src="./play/assets/sprites/square01_001.png" alt="" width="54" height="54"></span>
+              <span class="room-body">
+                <strong>Sprite studio</strong>
+                <small>Open a texture pack and see every single sprite as its own picture. Swap one for your own image — it is resized to the original slot for you.</small>
+                <span class="room-tags"><em>.zip</em><em>.plist</em><em>replace art</em><em>saved packs</em></span>
+              </span>
+              <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
+            </a>
+
+            <a class="room" href="#play" data-room="3">
+              <span class="room-key" aria-hidden="true">3</span>
+              <span class="room-art room-art-play"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#w-play"></use></svg></span>
+              <span class="room-body">
+                <strong>Play a level</strong>
+                <small>Run one of the bundled Geometry Dash levels right here. <kbd>Space</kbd> jumps, <kbd>Esc</kbd> closes the game.</small>
+                <span class="room-tags"><em>instant play</em><em>22 levels</em></span>
+              </span>
+              <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
+            </a>
+
+            <a class="room" href="#saved" data-room="4">
+              <span class="room-key" aria-hidden="true">4</span>
+              <span class="room-art"><img src="./play/assets/sprites/export.png" alt="" width="54" height="54"></span>
+              <span class="room-body">
+                <strong>Saved files</strong>
+                <small id="saved-hint">Everything you have converted on this device, ready to download again.</small>
+                <span class="room-tags"><em>this browser</em><em>offline</em></span>
+              </span>
+              <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
+            </a>
+
+            <a class="room" href="#save" data-room="5">
+              <span class="room-key" aria-hidden="true">5</span>
+              <span class="room-art"><img src="./play/assets/sprites/GJ_button_04.png" alt="" width="54" height="54"></span>
+              <span class="room-body">
+                <strong>Save file reader</strong>
+                <small>Look inside <code>CCGameManager.dat</code> — stats, coins, demons and level progress — without changing the original file.</small>
+                <span class="room-tags"><em>.dat</em><em>read-only</em><em>private</em></span>
+              </span>
+              <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
+            </a>
+          </div>
+        </section>
+
+        <section class="panel" aria-label="This browser">
+          <div class="panel-row">
+            <span class="panel-led" id="hub-led" aria-hidden="true"></span>
+            <p id="hub-status">Checking what is already saved on this device…</p>
+          </div>
+          <ul class="formats" aria-label="Supported formats">
+            <li>.gmd</li><li>.txt</li><li>.zip</li><li>.plist</li><li>.png</li><li>.dat</li>
+          </ul>
+        </section>
       </section>
 
-      <section class="rooms" aria-labelledby="rooms-title">
-        <h1 id="rooms-title" class="rooms-title">Pick a room</h1>
-        <div class="room-grid">
-          <a class="room" href="./convert/" data-room="1">
-            <span class="room-key" aria-hidden="true">1</span>
-            <span class="room-art"><img src="./play/assets/sprites/import.png" alt="" width="54" height="54"></span>
-            <span class="room-body">
-              <strong>Convert files</strong>
-              <small><code>.gmd</code> ⇄ <code>.txt</code>, both directions, in batches, with a preview of what is inside the level.</small>
-              <span class="room-tags"><em>drop</em><em>paste</em><em>batch</em></span>
-            </span>
-            <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
-          </a>
+      <!-- ---------------------------------------------------------- convert -->
+      <section class="view" id="view-convert" data-view="convert" aria-label="Convert level files">
+        <section class="hero">
+          <h1>Convert Geometry Dash levels — both ways.</h1>
+          <p class="lede">
+            Drop a <strong>.gmd</strong> file to get the <strong>.txt</strong> level string inside it, or drop a
+            <strong>.txt</strong> to build a <strong>.gmd</strong>. Nothing is uploaded — everything happens in this browser tab.
+          </p>
 
-          <a class="room room-sprites" href="./textures/" data-room="2">
-            <span class="room-key" aria-hidden="true">2</span>
-            <span class="room-art"><img src="./play/assets/sprites/square01_001.png" alt="" width="54" height="54"></span>
-            <span class="room-body">
-              <strong>Sprite studio</strong>
-              <small>Open a texture pack and see every single sprite as its own picture. Swap one for your own image — it is resized to the original slot for you.</small>
-              <span class="room-tags"><em>.zip</em><em>.plist</em><em>replace art</em></span>
+          <div id="dropzone" class="drop">
+            <span class="drop-icon"><svg class="icon"><use href="#i-file"></use></svg></span>
+            <span class="drop-title">Drop your level files here</span>
+            <span class="drop-hint">.gmd and .txt · you can drop several at once</span>
+            <span class="drop-actions">
+              <span class="btn primary" data-role="choose">
+                <svg class="icon"><use href="#i-file"></use></svg>Choose files</span>
+              <button type="button" class="btn ghost" id="paste-open">
+                <svg class="icon"><use href="#i-copy"></use></svg>Paste level text</button>
             </span>
-            <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
-          </a>
+          </div>
 
-          <a class="room" href="./play/" data-room="3">
-            <span class="room-key" aria-hidden="true">3</span>
-            <span class="room-art room-art-play"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#w-play"></use></svg></span>
-            <span class="room-body">
-              <strong>Play a level</strong>
-              <small>Run a bundled Geometry Dash level in the bundled runtime. <kbd>Space</kbd> jumps, <kbd>Esc</kbd> leaves.</small>
-              <span class="room-tags"><em>instant play</em><em>30 levels</em></span>
-            </span>
-            <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
-          </a>
+          <p class="samples">
+            <svg class="icon"><use href="#i-sparkle"></use></svg>
+            <label for="sample-select">No file handy? Try a sample level</label>
+            <select id="sample-select" aria-label="Load a sample Geometry Dash level"><option value="">Choose a level…</option></select>
+          </p>
 
-          <a class="room" href="./convert/#saved" data-room="4">
-            <span class="room-key" aria-hidden="true">4</span>
-            <span class="room-art"><img src="./play/assets/sprites/export.png" alt="" width="54" height="54"></span>
-            <span class="room-body">
-              <strong>Saved files</strong>
-              <small id="saved-hint">Everything you have converted on this device, ready to download again.</small>
-              <span class="room-tags"><em>this browser</em><em>offline</em></span>
-            </span>
-            <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
-          </a>
+          <ol class="steps" id="steps">
+            <li><span class="step-num">1</span>Drop a <strong>.gmd</strong> or <strong>.txt</strong> level file</li>
+            <li><span class="step-num">2</span>We convert it instantly — nothing to set up</li>
+            <li><span class="step-num">3</span>Copy the text or download the file</li>
+          </ol>
+        </section>
 
-          <a class="room" href="./workbench/" data-room="5">
-            <span class="room-key" aria-hidden="true">5</span>
-            <span class="room-art"><img src="./play/assets/sprites/macroBot.png" alt="" width="54" height="54"></span>
-            <span class="room-body">
-              <strong>Full workspace</strong>
-              <small>The complete GMDPlayer workspace: home, level library, projects, texture packs, songs, the save explorer and diagnostics.</small>
-              <span class="room-tags"><em>library</em><em>projects</em><em>textures</em><em>saves</em></span>
-            </span>
-            <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
-          </a>
+        <section id="results" class="results" aria-live="polite" hidden>
+          <div class="section-head">
+            <h2 id="results-title">Your files</h2>
+            <div class="section-actions">
+              <button type="button" class="btn ghost small" id="download-all" hidden>
+                <svg class="icon"><use href="#i-zip"></use></svg>Download all as .zip</button>
+              <button type="button" class="btn link small" id="clear-results">Clear list</button>
+            </div>
+          </div>
+          <div id="result-list" class="result-list"></div>
+        </section>
 
-          <a class="room" href="./workbench/#/tools/save" data-room="6">
-            <span class="room-key" aria-hidden="true">6</span>
-            <span class="room-art"><img src="./play/assets/sprites/GJ_button_04.png" alt="" width="54" height="54"></span>
-            <span class="room-body">
-              <strong>Save files</strong>
-              <small>Look inside <code>CCGameManager.dat</code> — stats, unlocked icons and level progress, without changing the original file.</small>
-              <span class="room-tags"><em>.dat</em><em>read-only</em></span>
-            </span>
-            <span class="room-go" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#w-arrow"></use></svg></span>
-          </a>
+        <section class="help">
+          <h2>Questions people actually ask</h2>
+          <div class="faq">
+            <details>
+              <summary>What is a .gmd file?</summary>
+              <p>A <strong>.gmd</strong> file is a Geometry Dash level export. It holds the level's data plus its name, creator and song. Tools and mods such as GDShare can import it.</p>
+            </details>
+            <details>
+              <summary>What is a .txt level string?</summary>
+              <p>A <strong>.txt</strong> level string is the raw level text. It usually looks like random letters starting with <code>H4sI…</code> because the game compresses it. It is what tools and modded clients that accept level strings expect, and it is a good plain-text backup of a level.</p>
+            </details>
+            <details>
+              <summary>Is my file uploaded anywhere?</summary>
+              <p>No. There is no server in this app. Your files are read and converted inside your browser tab, and they keep working if you go offline.</p>
+            </details>
+            <details>
+              <summary>Can I convert the other way too?</summary>
+              <p>Yes. Drop a <strong>.txt</strong> file (or paste level text) and you get a <strong>.gmd</strong> file, with the level's name, creator and song filled in automatically when the file contains them.</p>
+            </details>
+            <details>
+              <summary>I dropped a file and nothing happened.</summary>
+              <p>Levels convert here; a save file such as <code>CCGameManager.dat</code> is read in the <a href="#save">save file reader</a>, and a texture pack opens in the <a href="#textures">sprite studio</a>. Every room is on the same page — use the menu at the top.</p>
+            </details>
+            <details>
+              <summary>Why is my .txt file so hard to read?</summary>
+              <p>That is normal — level strings are compressed. Open <em>Details</em> on a result and choose <em>Readable text</em> to see the decoded version.</p>
+            </details>
+            <details>
+              <summary>Where did my converted files go?</summary>
+              <p>Downloads go wherever your browser saves downloads. The app also keeps a private copy of your last conversions in this browser's storage (see <a href="#saved">Saved files</a>) so you can download them again. Deleting them there does not touch your original files.</p>
+            </details>
+          </div>
+        </section>
+      </section>
+
+      <!-- --------------------------------------------------------- textures -->
+      <section class="view" id="view-textures" data-view="textures" aria-label="Sprite studio">
+        <div class="studio-bar">
+          <div class="studio-title">
+            <strong>Sprite studio</strong>
+            <span id="pack-name">No pack open</span>
+          </div>
+          <div class="studio-actions">
+            <button type="button" class="btn ghost" id="open-pack">Open pack…</button>
+            <button type="button" class="btn ghost" id="open-sprites" hidden>Import PNG / PLIST</button>
+            <button type="button" class="btn primary" id="download-pack" hidden>Download updated pack (.zip)</button>
+          </div>
+        </div>
+
+        <p class="studio-status" id="studio-status">Drop a <code>.zip</code>, <code>.png</code> or <code>.plist</code> anywhere on this page.</p>
+
+        <section class="saved-packs" id="saved-packs" hidden></section>
+
+        <section class="empty" id="empty-state">
+          <div class="empty-slot"><img src="./play/assets/sprites/import.png" alt="" width="56" height="56"></div>
+          <h1>Open a texture pack to see every sprite</h1>
+          <p>Drop a <code>.zip</code> texture pack, a matching <code>.png</code> + <code>.plist</code> pair, or loose sprite images anywhere on this page. Every sprite in the atlas is cut out and shown as its own picture, with its real pixel size.</p>
+          <div class="empty-actions">
+            <button type="button" class="btn primary" id="choose-pack">Choose files</button>
+            <button type="button" class="btn ghost" id="choose-folder">Choose a folder</button>
+            <button type="button" class="btn ghost" id="open-bundled">Try the bundled game sheets</button>
+          </div>
+          <small class="empty-note">Everything stays in this browser. Replacing a sprite never touches your original files.</small>
+        </section>
+
+        <section class="browser" id="browser" hidden>
+          <div class="toolbar">
+            <label class="search-wrap">
+              <input id="sprite-search" class="search" type="search" placeholder="Search sprites by name" aria-label="Search sprites by name">
+            </label>
+            <label class="select-wrap">Sheet
+              <select id="sheet-filter"></select>
+            </label>
+            <label class="select-wrap">Sort
+              <select id="sprite-sort">
+                <option value="sheet">Sheet order</option>
+                <option value="name">Name</option>
+                <option value="size-desc">Biggest first</option>
+                <option value="size-asc">Smallest first</option>
+                <option value="edited">Edited first</option>
+              </select>
+            </label>
+            <label class="check-wrap"><input type="checkbox" id="only-edited"> Edited only</label>
+            <span class="count" id="sprite-count"></span>
+            <button type="button" class="btn ghost small" id="split-sheet" hidden>Export this sheet as separate PNGs (.zip)</button>
+          </div>
+
+          <div class="grid" id="sprite-grid" role="list"></div>
+          <button type="button" class="btn ghost load-more" id="load-more" hidden>Show more sprites</button>
+        </section>
+
+        <section class="detail" id="detail" hidden aria-label="Sprite details">
+          <div class="detail-head">
+            <div class="detail-name">
+              <strong id="detail-title">Sprite</strong>
+              <span id="detail-sub" class="muted"></span>
+            </div>
+            <div class="detail-head-actions">
+              <button type="button" class="btn ghost small" id="detail-download">Download this PNG</button>
+              <button type="button" class="btn ghost small danger" id="detail-revert" hidden>Undo my replacement</button>
+              <button type="button" class="btn ghost small" id="detail-close">Close</button>
+            </div>
+          </div>
+
+          <div class="detail-body">
+            <figure class="detail-preview">
+              <div class="checker"><canvas id="detail-canvas" role="img" aria-label="Sprite preview"></canvas></div>
+              <figcaption id="detail-caption" class="muted"></figcaption>
+            </figure>
+
+            <dl class="facts" id="detail-facts"></dl>
+
+            <div class="replace">
+              <h2>Replace this sprite</h2>
+              <p class="muted">Choose a picture — it is scaled to fit this sprite's slot for you. The rest of the pack is untouched, and you can undo at any time.</p>
+              <div class="replace-drop" id="replace-drop">
+                <input type="file" id="replace-input" accept="image/*" hidden>
+                <button type="button" class="btn primary" id="replace-choose">Choose an image</button>
+                <span class="muted small">or drop it here</span>
+              </div>
+              <div class="replace-preview" id="replace-preview" hidden>
+                <figure>
+                  <div class="checker small"><img id="replace-source" alt="Your image"></div>
+                  <figcaption id="replace-source-caption" class="muted"></figcaption>
+                </figure>
+                <span class="replace-arrow" aria-hidden="true">→</span>
+                <figure>
+                  <div class="checker small"><canvas id="replace-result" role="img" aria-label="Result in the sprite slot"></canvas></div>
+                  <figcaption id="replace-result-caption" class="muted"></figcaption>
+                </figure>
+              </div>
+              <div class="replace-modes" id="replace-modes" hidden role="radiogroup" aria-label="How the image fits">
+                <label><input type="radio" name="fit" value="contain" checked> Fit inside <small>whole picture, transparent edges</small></label>
+                <label><input type="radio" name="fit" value="cover"> Fill the slot <small>keeps the middle, crops the rest</small></label>
+                <label><input type="radio" name="fit" value="stretch"> Stretch to size <small>fills exactly, may distort</small></label>
+                <label><input type="radio" name="fit" value="exact"> Keep as-is <small>only if it is already the same size</small></label>
+              </div>
+              <div class="replace-actions" id="replace-actions" hidden>
+                <button type="button" class="btn primary" id="replace-apply">Use this image</button>
+                <button type="button" class="btn ghost" id="replace-cancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ------------------------------------------------------------- play -->
+      <section class="view" id="view-play" data-view="play" aria-label="Play a level">
+        <div class="view-head">
+          <h1>Play a level</h1>
+          <p class="lede">The bundled Geometry Dash runtime runs here, inside the workspace. <kbd>Space</kbd> jumps, <kbd>Esc</kbd> closes the game. Nothing to install.</p>
+        </div>
+        <div class="level-grid" id="level-grid" role="list"></div>
+      </section>
+
+      <!-- ------------------------------------------------------------ saved -->
+      <section class="view" id="view-saved" data-view="saved" aria-label="Saved files">
+        <div class="view-head">
+          <h1>Saved files <span class="badge" id="saved-count">0</span></h1>
+          <p class="lede">Your converted levels stay on this device so you can grab them again later — even offline. Deleting them here never touches your original files.</p>
+        </div>
+        <div class="saved-body">
+          <ul id="saved-list" class="saved-list"></ul>
+          <div class="saved-foot">
+            <span id="saved-size" class="muted small"></span>
+            <button type="button" class="btn link small" id="clear-saved">Delete saved files</button>
+          </div>
         </div>
       </section>
 
-      <section class="panel" aria-label="This browser">
-        <div class="panel-row">
-          <span class="panel-led" id="hub-led" aria-hidden="true"></span>
-          <p id="hub-status">Checking what is already saved on this device…</p>
+      <!-- ------------------------------------------------------- save reader -->
+      <section class="view" id="view-save" data-view="save" aria-label="Save file reader">
+        <div class="view-head">
+          <h1>Save file reader</h1>
+          <p class="lede">Drop <code>CCGameManager.dat</code> (or any <code>.dat</code> from Geometry Dash) to read your stats, coins, demons and level progress. The file is only read — nothing is written back.</p>
         </div>
-        <ul class="formats" aria-label="Supported formats">
-          <li>.gmd</li><li>.txt</li><li>.zip</li><li>.plist</li><li>.png</li><li>.dat</li>
-        </ul>
+        <div class="save-drop" id="save-drop">
+          <input type="file" id="save-input" accept=".dat,application/octet-stream" hidden>
+          <span class="save-drop-icon" aria-hidden="true"><svg class="icon"><use href="#i-lock"></use></svg></span>
+          <span class="save-drop-title">Drop a <code>.dat</code> save file here</span>
+          <span class="save-drop-hint">or</span>
+          <button type="button" class="btn primary" id="save-choose">Choose a save file</button>
+        </div>
+        <div id="save-report" class="save-report" hidden></div>
       </section>
 
-      <div id="hub-fatal" class="fatal" hidden>
+      <div id="workspace-fatal" class="fatal" hidden>
         <h2>The workspace could not start</h2>
         <p>Your browser loaded this page but did not run the app. Open it from a normal web address (http:// or https://) rather than a file, then reload.</p>
         <details><summary>Technical detail</summary><pre></pre></details>
@@ -156,11 +405,53 @@
     <footer class="cabinet-foot">
       <div class="wrap">
         <p>No accounts, no uploads. Files are read in this tab; conversions and texture packs are stored in this browser's own database.</p>
-        <p class="cabinet-foot-meta">Geometry Dash is a trademark of RobTop Games. This is an unofficial fan tool. <span id="hub-version"></span></p>
+        <p class="cabinet-foot-meta">Geometry Dash is a trademark of RobTop Games. This is an unofficial fan tool. <span id="version-label"></span></p>
       </div>
     </footer>
   </div>
 
-  <div id="hub-toast" class="hub-toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="paste-dialog" class="sheet">
+    <form method="dialog" class="sheet-inner" id="paste-form">
+      <div class="sheet-head">
+        <h2>Paste a level string</h2>
+        <button type="button" class="btn icon ghost" data-close aria-label="Close">
+          <svg class="icon"><use href="#i-close"></use></svg></button>
+      </div>
+      <p class="muted">Copy a level string out of Geometry Dash or another tool, paste it below, and press Convert. It usually starts with <code>H4sI</code>, but readable level text works too.</p>
+      <textarea id="paste-text" rows="7" spellcheck="false" placeholder="H4sIAAAAAAAAA…" aria-label="Level string"></textarea>
+      <div class="sheet-actions">
+        <span class="muted small" id="paste-status"></span>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary" id="paste-convert">
+          <svg class="icon"><use href="#i-swap"></use></svg>Convert</button>
+      </div>
+    </form>
+  </dialog>
+
+  <section id="player-overlay" class="player-overlay is-parked" role="dialog" aria-modal="true" aria-label="Level preview" tabindex="-1">
+    <div class="player-bar">
+      <span class="player-title" id="player-title">Level preview</span>
+      <span class="player-status muted small" id="player-status"></span>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost small" id="player-close">
+        <svg class="icon"><use href="#i-close"></use></svg>Close</button>
+    </div>
+    <div class="player-viewport">
+      <div id="player-stage" class="player-stage"></div>
+      <div class="player-loading" id="player-loading">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Starting the bundled Geometry Dash runtime…</p>
+        <small id="player-loading-hint">Levels start by themselves — no extra clicks needed.</small>
+      </div>
+    </div>
+  </section>
+
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+  <div id="studio-toast" class="studio-toast" role="status" aria-live="polite" hidden></div>
+
+  <input type="file" id="file-input" accept=".gmd,.txt,text/plain,application/octet-stream" multiple hidden>
+  <input type="file" id="pack-input" accept=".zip,.png,.plist,image/png,application/zip,application/xml,text/xml" multiple hidden>
+  <input type="file" id="folder-input" accept=".zip,.png,.plist,image/png,application/zip,application/xml,text/xml" webkitdirectory directory multiple hidden>
 </body>
 </html>

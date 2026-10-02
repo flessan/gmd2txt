@@ -18,7 +18,7 @@ import { saveTextureWorkspace, getTextureWorkspace, getTextureWorkspaceSummaries
 
 const $ = selector => document.querySelector(selector);
 const dom = {
-  root: $("#studio-root"),
+  root: $("#workspace-root"),
   empty: $("#empty-state"),
   browser: $("#browser"),
   grid: $("#sprite-grid"),
@@ -60,7 +60,6 @@ const dom = {
   replaceCancel: $("#replace-cancel"),
   toast: $("#studio-toast"),
   status: $("#studio-status"),
-  version: $("#studio-version")
 };
 
 const state = {
@@ -523,7 +522,7 @@ async function openPack(files, packName = null) {
     await saveTextureWorkspace(pack);
     selectPack(pack);
     const broken = Object.values(pack.sheets || {}).flatMap(sheet => sheet.errors || []);
-    toast(`Opened ${pack.name}: ${usable.length} sprites from ${Object.keys(pack.sheets).length} sheet(s).${broken.length ? ` ${broken.length} note(s) — see the workshop for details.` : ""}`);
+    toast(`Opened ${pack.name}: ${usable.length} sprites from ${Object.keys(pack.sheets).length} sheet(s).${broken.length ? ` ${broken.length} file(s) could not be read.` : ""}`);
   } catch (error) {
     toast(error?.message || "That pack could not be opened.", true);
     dom.status.textContent = "Nothing loaded. Drop a .zip texture pack, or a PNG together with its .plist / atlas .json.";
@@ -560,8 +559,8 @@ async function openBundledSheets() {
     const files = [];
     for (const [png, json] of wanted) {
       const [pngResponse, jsonResponse] = await Promise.all([
-        fetch(`../play/assets/sheets/${png}`),
-        fetch(`../play/assets/sheets/${json}`)
+        fetch(`./play/assets/sheets/${png}`),
+        fetch(`./play/assets/sheets/${json}`)
       ]);
       if (!pngResponse.ok || !jsonResponse.ok) continue;
       files.push(new File([await pngResponse.blob()], png, { type: "image/png" }));
@@ -709,26 +708,7 @@ function bindEvents() {
   dom.replaceApply.addEventListener("click", applyReplacement);
   dom.replaceCancel.addEventListener("click", () => { state.replacement = null; releaseReplaceUrls(); resetReplacementUi(); });
 
-  // Dropping a pack anywhere starts a new one.
-  let fileDepth = 0;
-  const isPackDrop = event => [...(event.dataTransfer?.types || [])].includes("Files") && !event.target.closest("#replace-drop");
-  for (const type of ["dragenter", "dragover"]) {
-    window.addEventListener(type, event => {
-      if (!isPackDrop(event)) return;
-      event.preventDefault();
-      if (type === "dragenter") fileDepth++;
-      dom.empty.classList.add("is-over");
-    });
-  }
-  window.addEventListener("dragleave", () => { fileDepth = Math.max(0, fileDepth - 1); if (!fileDepth) dom.empty.classList.remove("is-over"); });
-  window.addEventListener("dragover", event => event.preventDefault());
-  window.addEventListener("drop", event => {
-    if (!event.dataTransfer?.files?.length || event.target.closest("#replace-drop")) return;
-    event.preventDefault();
-    fileDepth = 0;
-    dom.empty.classList.remove("is-over");
-    openPack(event.dataTransfer.files);
-  });
+  // Dropped files are routed here by the workspace shell (`workspace.js`).
 
   window.addEventListener("keydown", event => {
     if (event.key === "Escape" && state.selected) {
@@ -739,23 +719,21 @@ function bindEvents() {
   });
 }
 
-function registerServiceWorker() {
-  if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
-  const script = new URL("../../sw.js", location.href);
-  const scope = new URL("../../", location.href);
-  navigator.serviceWorker.register(script, { scope }).catch(() => {});
-}
-
 function start() {
-  dom.version.textContent = window.GMDPLAYER_META ? `${window.GMDPLAYER_META.name} ${window.GMDPLAYER_META.version}` : "";
   dom.root.dataset.ready = "yes";
   bindEvents();
-  registerServiceWorker();
   render();
   renderSavedPacks();
 }
 
 start();
 
-// Exposed for the browser test harness: it drives the same code paths the UI does.
-window.__spriteStudio = { state, openPack, importTextureFiles, createSpriteReplacement, fitRect, spriteCanvas };
+/* Exposed for the workspace shell and the browser test harness: both drive the
+   same code paths the UI does. */
+export const studioApi = {
+  state, openPack, importTextureFiles, createSpriteReplacement, fitRect, spriteCanvas,
+  openFiles: files => openPack(files),
+  refreshSavedPacks: renderSavedPacks,
+  showDropHint: value => dom.empty.classList.toggle("is-over", value)
+};
+window.__spriteStudio = studioApi;

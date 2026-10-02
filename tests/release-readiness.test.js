@@ -72,54 +72,58 @@ test("PWA manifest icons, service worker shell URLs, and player adapter target e
   assert.ok(player.pathname.endsWith("/app/play/index.html"),`unexpected player URL ${player.href}`);
 });
 
-test("the workspace hub, the converter and the sprite studio all exist and link to each other", async () => {
-  // /app/ is the workspace landing page: a wall of rooms, not a single feature.
-  for (const file of ["app/index.html","app/workspace.js","app/assets/workspace.css","app/convert/index.html","app/convert/main.js","app/assets/gmd2txt.css","app/textures/index.html","app/textures/main.js","app/textures/textures.css","app/workbench/index.html","app/workbench/main.js","core/convert/level-file.js"]) {
-    assert.ok(existsSync(path.join(root,file)),`missing ${file}`);
+test("the workspace is a single page with a single stylesheet, and every room lives in it", async () => {
+  // One page, one stylesheet. `app/play/` is the bundled game runtime (it is
+  // the engine the preview runs in), not a page of the workspace UI.
+  const { readdir } = await import("node:fs/promises");
+  const pages = (await readdir(path.join(root, "app"), { withFileTypes: true }))
+    .filter(entry => entry.isFile() && entry.name.endsWith(".html")).map(entry => entry.name);
+  assert.deepEqual(pages, ["index.html"], `the workspace must be one page, found ${pages.join(", ")}`);
+  for (const gone of ["app/convert", "app/textures", "app/workbench", "app/converter", "app/assets/gmd2txt.css", "app/textures/textures.css"]) {
+    assert.ok(!existsSync(path.join(root, gone)), `${gone} should be gone — it was a separate page or stylesheet`);
   }
+  const stylesheets = (await readdir(path.join(root, "app/assets"))).filter(name => name.endsWith(".css"));
+  assert.deepEqual(stylesheets, ["workspace.css"], `the workspace must be one stylesheet, found ${stylesheets.join(", ")}`);
 
-  const hub = await readFile(path.join(root,"app/index.html"),"utf8");
-  assert.match(hub,/type="module" src="\.\/workspace\.js"/);
-  assert.match(hub,/href="\.\/convert\/"/, "the hub links to the converter");
-  assert.match(hub,/href="\.\/textures\/"/, "the hub links to the sprite studio");
-  assert.match(hub,/href="\.\/play\/"/, "the hub links to the player");
-  assert.match(hub,/href="\.\/workbench\/"/, "the hub links to the workshop");
-  assert.match(hub,/id="intake"/, "the hub accepts dropped files");
-  const rooms = hub.match(/class="room[ "]/g) || [];
-  assert.ok(rooms.length >= 5, `the landing page should be a collection of rooms (found ${rooms.length})`);
-  for (const [,src] of hub.matchAll(/src="(\.\/[^"]+)"/g)) assert.ok(existsSync(path.resolve(root,"app",src)),`hub asset missing: ${src}`);
-
-  const workspace = await readFile(path.join(root,"app/workspace.js"),"utf8");
-  assert.match(workspace,/from "\.\.\/core\/storage\/handoff\.js"/, "dropped files are parked for the converter");
-
-  // The converter moved into its own room but still uses the shared core.
-  const converter = await readFile(path.join(root,"app/convert/index.html"),"utf8");
-  assert.match(converter,/type="module" src="\.\/main\.js"/);
-  assert.match(converter,/id="dropzone"/);
-  assert.match(converter,/id="result-list"/);
-  const main = await readFile(path.join(root,"app/convert/main.js"),"utf8");
-  assert.match(main,/from "\.\.\/\.\.\/core\/convert\/level-file\.js"/, "the converter UI must use the shared conversion core");
-  assert.match(main,/takeHandoffFiles/, "the converter picks up files dropped on the hub");
-
-  // The sprite studio is sprite-first: individual images, dimensions, replacement.
-  const studio = await readFile(path.join(root,"app/textures/index.html"),"utf8");
-  assert.match(studio,/id="sprite-grid"/);
-  assert.match(studio,/id="detail"/);
-  assert.match(studio,/Replace this sprite/);
-  const studioMain = await readFile(path.join(root,"app/textures/main.js"),"utf8");
-  assert.match(studioMain,/extractSprite/, "each sprite is cut out as its own image");
-  assert.match(studioMain,/createSpriteReplacement/, "replacement images are fitted to the sprite slot");
-  assert.match(studioMain,/saveTextureWorkspace/);
-
-  // The full-workspace room is the original GMDPlayer app, kept as it always was:
-  // same title, same chrome, no re-skinning and no injected links.
-  const workshop = await readFile(path.join(root,"app/workbench/index.html"),"utf8");
-  assert.match(workshop,/type="module" src="\.\/main\.js"/,"the room boots the original workspace app");
-  assert.match(workshop,/<title>GMDPlayer — Geometry Dash workstation<\/title>/,"the workspace keeps its own name");
-  assert.doesNotMatch(workshop,/back-to-converter|GMDPlayer Workshop|Advanced workshop/,"the original workspace must not be re-skinned");
-
-  for (const [file, target] of [["app/converter/index.html","../convert/"],["app/workbench/index.html","../"]]) {
-    const text = await readFile(path.join(root,file),"utf8");
-    assert.match(text, new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")), `${file} should lead to ${target}`);
+  const page = await readFile(path.join(root, "app/index.html"), "utf8");
+  assert.match(page, /type="module" src="\.\/workspace\.js"/);
+  assert.match(page, /<link rel="stylesheet" href="\.\/assets\/workspace\.css">/, "the page links the one stylesheet");
+  assert.equal((page.match(/rel="stylesheet"/g) || []).length, 1, "exactly one stylesheet link");
+  assert.equal((page.match(/<html/g) || []).length, 1, "one document");
+  for (const room of ["home", "convert", "textures", "play", "saved", "save"]) {
+    assert.match(page, new RegExp(`id="view-${room}"`), `missing the ${room} room`);
   }
+  // The rooms keep the feature ids their modules drive.
+  for (const id of ["intake", "dropzone", "result-list", "sprite-grid", "detail", "level-grid", "saved-list", "save-drop", "player-overlay", "paste-dialog", "toasts"]) {
+    assert.match(page, new RegExp(`id="${id}"`), `missing #${id}`);
+  }
+  const rooms = page.match(/class="room[ "]/g) || [];
+  assert.ok(rooms.length >= 5, `the landing view should be a collection of rooms (found ${rooms.length})`);
+  for (const [, src] of page.matchAll(/src="(\.\/[^"]+)"/g)) assert.ok(existsSync(path.resolve(root, "app", src)), `page asset missing: ${src}`);
+
+  // The shell routes dropped files to the room that understands them.
+  const shell = await readFile(path.join(root, "app/workspace.js"), "utf8");
+  assert.match(shell, /from "\.\/views\/convert\.js"/, "the shell mounts the converter room");
+  assert.match(shell, /from "\.\/views\/textures\.js"/, "the shell mounts the sprite studio");
+  assert.match(shell, /from "\.\/views\/savefile\.js"/, "the shell mounts the save reader");
+  assert.match(shell, /function routeFiles/, "dropped files are routed by type");
+  assert.doesNotMatch(shell, /location\.assign\("\.\/convert/, "no room navigates away any more");
+
+  // The converter room still uses the shared conversion core.
+  const converter = await readFile(path.join(root, "app/views/convert.js"), "utf8");
+  assert.match(converter, /from "\.\.\/\.\.\/core\/convert\/level-file\.js"/, "the converter UI must use the shared conversion core");
+  assert.match(converter, /export const converterApi/);
+  assert.doesNotMatch(converter, /takeHandoffFiles/, "there is no cross-page drop box to drain");
+
+  // The studio keeps the sprite-first contract: cut out, size it, replace it.
+  const studio = await readFile(path.join(root, "app/views/textures.js"), "utf8");
+  assert.match(studio, /extractSprite/, "each sprite is cut out as its own image");
+  assert.match(studio, /createSpriteReplacement/, "replacement images are fitted to the sprite slot");
+  assert.match(studio, /saveTextureWorkspace/, "texture workspaces are saved from the studio");
+  assert.match(studio, /export const studioApi/);
+
+  // The save reader reads Geometry Dash saves with the shared decoder.
+  const saveReader = await readFile(path.join(root, "app/views/savefile.js"), "utf8");
+  assert.match(saveReader, /from "\.\.\/\.\.\/core\/saves\/save-decoder\.js"/);
+  assert.match(saveReader, /maskSensitiveFields/);
 });

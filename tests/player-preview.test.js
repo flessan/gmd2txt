@@ -18,8 +18,8 @@ const sceneFile = "app/play/assets/scripts/core/game-scene.js";
 const bridgeFile = "app/play/assets/scripts/core/gmdplayer-bridge.js";
 const runtimeMainFile = "app/play/assets/scripts/core/main.js";
 const adapterFile = "core/runtime/player-adapter.js";
-const appMainFile = "app/convert/main.js";
-const appShellFile = "app/convert/index.html";
+const appMainFile = "app/views/convert.js";
+const appShellFile = "app/index.html";
 
 test("the runtime publishes its game handle and nothing resolves Phaser.GAMES only", async () => {
   const [runtimeMain, bridge, adapter] = await Promise.all([
@@ -100,7 +100,7 @@ test("the converter boots the runtime early and parks it off screen instead of a
 });
 
 test("the preview does not move an iframe that is already running", async () => {
-  const [app, css] = await Promise.all([read(appMainFile), read("app/assets/gmd2txt.css")]);
+  const [app, css] = await Promise.all([read(appMainFile), read("app/assets/workspace.css")]);
   // The only place a frame may be created is the warm-up, and it is appended to
   // the stage it will be shown in.
   const creations = app.match(/document\.createElement\("iframe"\)/g) || [];

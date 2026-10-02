@@ -2,7 +2,7 @@
   "id": "./",
   "name": "GMD Workspace \u2014 local Geometry Dash file tools",
   "short_name": "GMD Workspace",
-  "description": "A local workspace for Geometry Dash files: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and inspect saves. Nothing is uploaded.",
+  "description": "One page of local Geometry Dash tools: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and read saves. Nothing is uploaded.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
