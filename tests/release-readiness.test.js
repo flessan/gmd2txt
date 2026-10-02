@@ -111,6 +111,13 @@ test("the workspace hub, the converter and the sprite studio all exist and link 
   assert.match(studioMain,/createSpriteReplacement/, "replacement images are fitted to the sprite slot");
   assert.match(studioMain,/saveTextureWorkspace/);
 
+  // The full-workspace room is the original GMDPlayer app, kept as it always was:
+  // same title, same chrome, no re-skinning and no injected links.
+  const workshop = await readFile(path.join(root,"app/workbench/index.html"),"utf8");
+  assert.match(workshop,/type="module" src="\.\/main\.js"/,"the room boots the original workspace app");
+  assert.match(workshop,/<title>GMDPlayer — Geometry Dash workstation<\/title>/,"the workspace keeps its own name");
+  assert.doesNotMatch(workshop,/back-to-converter|GMDPlayer Workshop|Advanced workshop/,"the original workspace must not be re-skinned");
+
   for (const [file, target] of [["app/converter/index.html","../convert/"],["app/workbench/index.html","../"]]) {
     const text = await readFile(path.join(root,file),"utf8");
     assert.match(text, new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")), `${file} should lead to ${target}`);

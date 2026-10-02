@@ -4,14 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f3ee">
-  <meta name="application-name" content="GMDPlayer Workshop">
-  <meta name="description" content="Advanced workshop: save explorer, texture pack editor, songs and projects for Geometry Dash files.">
+  <meta name="application-name" content="GMDPlayer">
+  <meta name="description" content="A local-first workstation for Geometry Dash files.">
   <meta name="color-scheme" content="light">
-  <meta name="robots" content="noindex">
   <link rel="manifest" href="../manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="../assets/icons/icon-192.png">
   <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
-  <title>GMDPlayer Workshop — advanced tools</title>
+  <title>GMDPlayer — Geometry Dash workstation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./workbench.css">
   <script src="../app-meta.js"></script>
   <script src="../play/assets/scripts/libs/pako.min.js"></script>
@@ -25,16 +27,15 @@
         if (!app.innerHTML || app.querySelector(".boot-screen")) {
           handled = true;
           app.innerHTML =
-            '<main style="min-height:100vh;display:grid;place-items:center;padding:32px;background:#f4f3ee;color:#17352d;font-family:system-ui,sans-serif">' +
+            '<main style="min-height:100vh;display:grid;place-items:center;padding:32px;background:#f4f3ee;color:#17352d;font-family:Poppins,system-ui,sans-serif">' +
             '<section style="width:min(680px,100%);padding:32px;border:1px solid #d8ded8;border-radius:14px;background:#fff;box-shadow:0 12px 40px rgba(23,53,45,.08)">' +
-            '<div style="font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6c7b74">Advanced workshop</div>' +
-            '<h1 style="margin:8px 0 10px;font-size:30px">The workshop could not start.</h1>' +
-            '<p style="margin:0 0 18px;color:#5f6d67;line-height:1.6">The page loaded, but the application module did not finish starting. This is a browser/runtime error, not a file problem.</p>' +
-            '<p style="margin:0 0 18px"><a href="../" style="color:#24785f;font-weight:600">← Back to the workspace</a></p>' +
+            '<div style="font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6c7b74">GMDPlayer startup</div>' +
+            '<h1 style="margin:8px 0 10px;font-size:30px">The app could not start.</h1>' +
+            '<p style="margin:0 0 18px;color:#5f6d67;line-height:1.6">The page loaded, but the application module did not finish starting. This is a browser/runtime error, not a file upload problem.</p>' +
             '<details style="margin:0 0 20px"><summary style="cursor:pointer;font-weight:600">Diagnostic</summary><pre style="white-space:pre-wrap;overflow:auto;margin-top:10px;padding:12px;border-radius:8px;background:#f6f7f4;color:#36433e">' +
-            String(message || "Unknown startup error").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") +
+            String(message || "Unknown startup error").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") +
             '</pre></details>' +
-            '<p style="margin:0"><a href="./" style="display:inline-block;padding:11px 16px;border-radius:8px;background:#24785f;color:#fff;text-decoration:none;font-weight:600">Reload the workshop</a></p>' +
+            '<p style="margin:0;display:flex;gap:10px;flex-wrap:wrap"><a href="./?reload=' + Date.now() + '" style="display:inline-block;padding:11px 16px;border-radius:8px;background:#24785f;color:#fff;text-decoration:none;font-weight:600">Reload GMDPlayer</a><a href="../" style="display:inline-block;padding:11px 16px;border:1px solid #cfd7d1;border-radius:8px;color:#17352d;text-decoration:none;font-weight:600">Open the workspace hub</a></p>' +
             '</section></main>';
         }
       };
@@ -47,39 +48,17 @@
       window.setTimeout(() => {
         const app = getApp();
         if (app && (!app.innerHTML || app.querySelector(".boot-screen"))) {
-          showBootFailure("The workshop did not finish initializing within 8 seconds.");
+          showBootFailure("GMDPlayer did not finish initializing within 8 seconds.");
         }
       }, 8000);
     })();
   </script>
   <script type="module" src="./main.js"></script>
-  <style>
-    /* Small floating way back to the converter; the workshop keeps its own layout. */
-    .back-to-converter {
-      position: fixed;
-      z-index: 60;
-      left: 18px;
-      bottom: 18px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
-      border-radius: 999px;
-      background: #24785f;
-      color: #fff;
-      font: 600 14px/1 system-ui, sans-serif;
-      text-decoration: none;
-      box-shadow: 0 10px 26px rgba(23, 53, 45, .22);
-    }
-    .back-to-converter:hover { background: #1b624e; }
-    @media (max-width: 720px) { .back-to-converter { bottom: 12px; left: 12px; padding: 9px 13px; font-size: 13px; } }
-  </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="toast-region" aria-live="polite"></div>
   <div id="operation-region" aria-live="polite"></div>
-  <a class="back-to-converter" href="../">← Back to the workspace</a>
   <input type="file" id="file-input" accept=".gmd,.txt,.dat,.png,.plist,.zip,.gmdproject,.mp3,.ogg,.opus,.wav,.m4a,.mp4,.aac,.flac,.webm,text/plain,application/octet-stream,image/png,application/zip,audio/*" multiple hidden>
   <input type="file" id="audio-input" accept="audio/*,.mp3,.ogg,.opus,.wav,.m4a,.aac,.flac,.webm,.mp4" multiple hidden>
   <input type="file" id="replacement-input" accept=".png,image/png" hidden>
