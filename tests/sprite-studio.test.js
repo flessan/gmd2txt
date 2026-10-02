@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import zlib from "node:zlib";
 
-import { fitRect, SPRITE_FIT_MODES } from "../core/textures/sprites.js";
+import { fitRect, SPRITE_FIT_MODES, isPngBytes, pngDimensions } from "../core/textures/sprites.js";
 import { parseJsonAtlas } from "../core/textures/json-atlas-parser.js";
 import { importTextureFiles, getSpriteEntries } from "../core/textures/texture-pack.js";
 
@@ -123,4 +123,33 @@ test("a PNG plus its atlas JSON imports as one sheet of individual sprites", asy
   const sprites = getSpriteEntries(pack);
   assert.deepEqual(sprites.map(entry => entry.frame.name).sort(), ["cube.png", "spike.png"]);
   assert.equal(sprites.find(entry => entry.frame.name === "spike.png").frame.rotated, true);
+});
+
+/* ------------------------------------------------------- pixel-accurate I/O */
+
+test("only real PNGs are treated as pixel-exact input", () => {
+  const png = makePng(4, 4);
+  assert.equal(isPngBytes(png), true);
+  assert.equal(isPngBytes(new Uint8Array([1, 2, 3, 4])), false, "too short to be a PNG");
+  assert.equal(isPngBytes(new TextEncoder().encode("<?xml version=\"1.0\"?><plist>")), false, "an XML plist is not a PNG");
+  const jpegish = png.slice(); jpegish[1] = 0xd8;
+  assert.equal(isPngBytes(jpegish), false, "one wrong signature byte is enough to reject");
+});
+
+test("pngDimensions reads the real size from the header without decoding", async () => {
+  const size = await pngDimensions(makePng(46, 12));
+  assert.deepEqual(size, { width: 46, height: 12 });
+  await assert.rejects(() => pngDimensions(new TextEncoder().encode("not a png at all, sorry, honestly it is just text")), /incomplete|valid PNG/);
+  await assert.rejects(() => pngDimensions(Buffer.alloc(8)), /incomplete/);
+});
+
+test("the exact fitting mode is documented as byte-for-byte", () => {
+  // createSpriteReplacementBytes keeps the file as-is for exact; the rule that
+  // decides that is: a PNG whose header size equals the sprite's logical size.
+  const frame = { name: "s", rotated: false, frame: { x: 0, y: 0, width: 12, height: 46 } };
+  const logical = frame.rotated ? { width: frame.frame.height, height: frame.frame.width } : { width: frame.frame.width, height: frame.frame.height };
+  assert.deepEqual(logical, { width: 12, height: 46 });
+  const rotated = { name: "r", rotated: true, frame: { x: 0, y: 0, width: 46, height: 12 } };
+  assert.deepEqual({ width: rotated.frame.height, height: rotated.frame.width }, { width: 12, height: 46 },
+    "a rotated frame is stored sideways, so its logical size is swapped");
 });

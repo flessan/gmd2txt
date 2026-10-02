@@ -905,6 +905,32 @@ body.has-player { overflow: hidden; }
 .atlas { --atlas-zoom: 1; }
 .atlas-frame { overflow: auto; max-height: 72vh; }
 .atlas-canvas, .atlas-overlay { width: calc(100% * var(--atlas-zoom)); }
+/* Fixed zoom levels (1:1 / 2× / 4×) set whole-pixel sizes on the canvas itself,
+   so the frame's border can never squeeze the sheet into a soft scale. */
+.atlas-panel.is-zoomed .atlas-frame { overscroll-behavior: contain; }
+.atlas-panel.is-zoomed .atlas-canvas { width: auto; }
+.atlas-panel.is-zoomed .atlas-overlay { width: auto; }
 .atlas-overlay { position: absolute; top: 0; left: 0; }
 .atlas-zoom { display: inline-flex; gap: 4px; }
 .atlas-zoom .btn.is-active { border-color: var(--blue); color: var(--blue); }
+
+/* ============ pixel-accurate sprite inspection ============
+   The detail picture is drawn at whole scale (one sprite pixel to a whole
+   number of device pixels) and is never shrunk by CSS: the stage scrolls
+   instead, so the zoom the caption reports is the zoom on screen. */
+#view-textures .pixel-stage { display: block; overflow: auto; max-height: 420px; padding: 14px; place-items: initial; }
+#view-textures .pixel-canvases { position: relative; display: inline-block; line-height: 0; }
+#view-textures .pixel-canvases canvas { max-width: none; max-height: none; display: block; }
+#view-textures #detail-grid { position: absolute; inset: 0; pointer-events: none; }
+#view-textures .pixel-readout {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  min-height: 22px; font-family: var(--mono); font-size: 12px;
+}
+#view-textures .pixel-readout .pixel-swatch {
+  width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line-bright);
+  background-image: conic-gradient(from 90deg at 50% 50%, #2a3b33 0 25%, #16231e 0 50%, #2a3b33 0 75%, #16231e 0);
+  background-size: 8px 8px; background-clip: padding-box; box-shadow: inset 0 0 0 2px rgba(0,0,0,.35);
+}
+#view-textures .pixel-readout .pixel-xy { color: var(--muted); }
+#view-textures .zoom-note { font-family: var(--mono); font-size: 12px; }
+#view-textures .zoom-note strong { color: var(--green); }

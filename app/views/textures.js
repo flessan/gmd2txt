@@ -11,7 +11,7 @@
  * crops are painted straight onto canvases (no PNG encoding in the hot path).
  */
 import { importTextureFiles, getSpriteEntries, applySpriteModification, resetSprite } from "../../core/textures/texture-pack.js";
-import { extractSprite, createSpriteReplacement, canvasToPngBytes, decodePng, fitRect } from "../../core/textures/sprites.js";
+import { extractSprite, createSpriteReplacement, createSpriteReplacementBytes, canvasToPngBytes, decodePng, fitRect, isPngBytes, pngDimensions } from "../../core/textures/sprites.js";
 import { exportTexturePack, exportSplitSprites } from "../../core/textures/texture-export.js";
 import { saveTextureWorkspace, getTextureWorkspace, getTextureWorkspaceSummaries } from "../../core/storage/texture-database.js";
 
@@ -37,6 +37,9 @@ const dom = {
   detailTitle: $("#detail-title"),
   detailSub: $("#detail-sub"),
   detailCanvas: $("#detail-canvas"),
+  detailGrid: $("#detail-grid"),
+  detailStage: $("#detail-stage"),
+  detailPixel: $("#detail-pixel"),
   detailCaption: $("#detail-caption"),
   detailFacts: $("#detail-facts"),
   detailDownload: $("#detail-download"),
@@ -70,7 +73,7 @@ const state = {
   pack: null,
   selected: null,
   viewMode: "atlas",   // "atlas" = the sheet itself, "sprites" = one picture per sprite
-  atlasZoom: 1,        // 1 = fit the width, 2/4 = scroll around the sheet
+  atlasZoom: "fit",    // "fit" | "1" (one sheet pixel per screen pixel) | 2 | 4
   query: "",
   sheet: "all",
   sort: "sheet",
@@ -419,12 +422,40 @@ function renderAtlas() {
   }
 }
 
-/** Fit, 2× or 4× — the sheet scrolls when it does not fit any more. */
+/**
+ * Fit, 1:1 (one sheet pixel per screen pixel), 2× or 4×.
+ *
+ * 1:1 divides by the device pixel ratio, so a sheet pixel lands exactly on a
+ * device pixel; 2× and 4× are whole multiples of that. Nothing is ever shown
+ * at a fractional scale except "Fit", which is labelled as such.
+ */
 function applyAtlasZoom(panel = null) {
   const targets = panel ? [panel] : dom.atlasSheets.querySelectorAll(".atlas-panel");
-  for (const item of targets) item.style.setProperty("--atlas-zoom", String(state.atlasZoom));
+  const mode = String(state.atlasZoom || "fit");
+  const dpr = deviceScale();
+  for (const item of targets) {
+    const canvas = item.querySelector("canvas.atlas-canvas");
+    const overlay = item.querySelector("canvas.atlas-overlay");
+    const frame = item.querySelector(".atlas-frame");
+    if (!canvas || !frame) continue;
+    const zoomed = mode !== "fit";
+    item.classList.toggle("is-zoomed", zoomed);
+    // The sheet is sized in whole device pixels, on the canvas itself — the
+    // frame only scrolls. Nothing depends on the frame's border or padding.
+    for (const surface of [canvas, overlay]) {
+      if (!surface) continue;
+      if (zoomed) {
+        const multiple = Number(mode) || 1;
+        surface.style.width = `${Math.round((canvas.width * multiple) / dpr)}px`;
+        surface.style.height = `${Math.round((canvas.height * multiple) / dpr)}px`;
+      } else {
+        surface.style.removeProperty("width");
+        surface.style.removeProperty("height");
+      }
+    }
+  }
   for (const button of dom.atlasZoom.querySelectorAll("[data-atlas-zoom]")) {
-    const active = Number(button.dataset.atlasZoom) === state.atlasZoom;
+    const active = button.dataset.atlasZoom === mode;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   }
@@ -468,7 +499,7 @@ function bindAtlas() {
   dom.atlasZoom.addEventListener("click", event => {
     const button = event.target.closest("[data-atlas-zoom]");
     if (!button) return;
-    state.atlasZoom = Number(button.dataset.atlasZoom) || 1;
+    state.atlasZoom = button.dataset.atlasZoom === "fit" ? "fit" : button.dataset.atlasZoom;
     applyAtlasZoom();
   });
 }
@@ -552,20 +583,153 @@ function render() {
 /* ------------------------------------------------------------------- detail */
 
 let zoom = 1;
+const ZOOM_STEPS = [1, 2, 4, 8, 16, 32];
+const DETAIL_MAX_SIDE = 8192;
+const DETAIL_MAX_BACKING = 20_000_000;
+let detailSprite = null;   // the 1:1 crop — the truth the readout reports
 
-/** Paints the sprite into the detail canvas at the current zoom level. */
+/** Zoom snaps to a step, so the picture is only ever shown at whole scale. */
+function snapZoom(value) {
+  const preferred = Math.max(1, Math.min(32, Number(value) || 1));
+  return ZOOM_STEPS.reduce((best, step) =>
+    Math.abs(Math.log(step / preferred)) < Math.abs(Math.log(best / preferred)) ? step : best, 1);
+}
+
+/** How many device pixels a CSS pixel covers, kept whole so scaling is exact. */
+const deviceScale = () => Math.max(1, Math.min(3, Math.round(window.devicePixelRatio || 1)));
+
+/**
+ * Paints the sprite at the current zoom, one sprite pixel to a whole number of
+ * device pixels. The displayed size is exactly `width × zoom` CSS pixels — no
+ * CSS shrinking — and the element scrolls instead, so "8×" always means 8×.
+ */
 function paintDetail(sprite) {
-  const target = dom.detailCanvas;
-  const scale = Math.max(1, Math.min(8, zoom));
-  const width = Math.max(1, Math.round(sprite.width * scale));
-  const height = Math.max(1, Math.round(sprite.height * scale));
-  target.width = width;
-  target.height = height;
+  const target = dom.detailCanvas, grid = dom.detailGrid;
+  const requested = Math.max(1, Math.min(32, Math.round(zoom)));
+  const dpr = deviceScale();
+  let scale = requested;
+  const fits = value => sprite.width * value * dpr <= DETAIL_MAX_SIDE
+    && sprite.height * value * dpr <= DETAIL_MAX_SIDE
+    && sprite.width * sprite.height * value * value * dpr * dpr <= DETAIL_MAX_BACKING;
+  while (scale > 1 && !fits(scale)) scale -= 1;
+
+  const backingWidth = Math.max(1, sprite.width * scale * dpr);
+  const backingHeight = Math.max(1, sprite.height * scale * dpr);
+  const cssWidth = sprite.width * scale, cssHeight = sprite.height * scale;
+
+  target.width = backingWidth; target.height = backingHeight;
+  target.style.width = `${cssWidth}px`; target.style.height = `${cssHeight}px`;
   const ctx = target.getContext("2d");
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, width, height);
-  ctx.drawImage(sprite, 0, 0, sprite.width, sprite.height, 0, 0, width, height);
-  return { width: sprite.width, height: sprite.height };
+  ctx.clearRect(0, 0, backingWidth, backingHeight);
+  ctx.drawImage(sprite, 0, 0, sprite.width, sprite.height, 0, 0, backingWidth, backingHeight);
+
+  // The grid lives on its own canvas, so the picture itself stays untouched.
+  grid.width = backingWidth; grid.height = backingHeight;
+  grid.style.width = `${cssWidth}px`; grid.style.height = `${cssHeight}px`;
+  const gctx = grid.getContext("2d");
+  gctx.clearRect(0, 0, backingWidth, backingHeight);
+  grid.hidden = scale < 8;
+  if (scale >= 8) {
+    const cell = scale * dpr;
+    gctx.strokeStyle = "rgba(255,255,255,.18)";
+    gctx.lineWidth = 1;
+    gctx.beginPath();
+    for (let x = 0; x <= sprite.width; x++) { const at = Math.min(backingWidth - 1, x * cell) + .5; gctx.moveTo(at, 0); gctx.lineTo(at, backingHeight); }
+    for (let y = 0; y <= sprite.height; y++) { const at = Math.min(backingHeight - 1, y * cell) + .5; gctx.moveTo(0, at); gctx.lineTo(backingWidth, at); }
+    gctx.stroke();
+    // Every eighth line is stronger, so counting pixels stays easy.
+    if (cell * 8 < backingWidth || cell * 8 < backingHeight) {
+      gctx.strokeStyle = "rgba(60,173,245,.45)";
+      gctx.beginPath();
+      for (let x = 0; x <= sprite.width; x += 8) { const at = Math.min(backingWidth - 1, x * cell) + .5; gctx.moveTo(at, 0); gctx.lineTo(at, backingHeight); }
+      for (let y = 0; y <= sprite.height; y += 8) { const at = Math.min(backingHeight - 1, y * cell) + .5; gctx.moveTo(0, at); gctx.lineTo(backingWidth, at); }
+      gctx.stroke();
+    }
+  }
+  dom.detailStage.dataset.zoom = String(scale);
+  return { width: sprite.width, height: sprite.height, zoom: scale, requested, capped: scale !== requested, dpr };
+}
+
+/** The pixel under the pointer, read from the 1:1 crop. */
+function pixelAt(clientX, clientY) {
+  if (!detailSprite) return null;
+  const rect = dom.detailCanvas.getBoundingClientRect();
+  const scale = Number(dom.detailStage.dataset.zoom) || zoom;
+  if (!rect.width || !rect.height) return null;
+  const x = Math.floor((clientX - rect.left) / scale);
+  const y = Math.floor((clientY - rect.top) / scale);
+  if (x < 0 || y < 0 || x >= detailSprite.width || y >= detailSprite.height) return null;
+  const data = detailSprite.getContext("2d").getImageData(x, y, 1, 1).data;
+  return { x, y, rgba: [data[0], data[1], data[2], data[3]] };
+}
+
+/**
+ * The zoom caption: what is shown, and what that means in pixels. It is rebuilt
+ * on every repaint, so the buttons can never disagree with the picture.
+ */
+function updateZoomCaption(extra = {}) {
+  const shown = Number(dom.detailStage.dataset.zoom) || zoom;
+  const sizeNote = shown === 1 ? "actual size — one sprite pixel per screen pixel" : `one sprite pixel = ${shown} screen pixels`;
+  const capped = extra.capped ? ` (capped from ${extra.requested}×)` : "";
+  dom.detailCaption.innerHTML =
+    `<span class="zoom-note">Shown at <strong>${shown}×</strong>${capped} · ${sizeNote}</span> ` +
+    ZOOM_STEPS.map(value =>
+      `<button type="button" class="btn ghost small ${value === shown ? "is-active" : ""}" data-action="zoom" data-zoom="${value}">${value}×</button>`
+    ).join(" ");
+}
+
+const hex2 = value => value.toString(16).padStart(2, "0");
+const rgbaHex = rgba => `#${hex2(rgba[0])}${hex2(rgba[1])}${hex2(rgba[2])}${rgba[3] === 255 ? "" : hex2(rgba[3])}`;
+const rgbaText = rgba => `rgba(${rgba.join(", ")})`;
+
+function showPixel(pixel) {
+  if (!dom.detailPixel) return;
+  if (!pixel) {
+    dom.detailPixel.innerHTML = `<span class="muted">Move over the sprite to read a pixel · click to copy its colour</span>`;
+    dom.detailPixel.dataset.hex = "";
+    return;
+  }
+  const hex = rgbaHex(pixel.rgba);
+  // The swatch is drawn over a checkerboard so semi-transparent pixels read honestly.
+  dom.detailPixel.dataset.hex = hex;
+  dom.detailPixel.innerHTML =
+    `<span class="pixel-swatch" style="background-color:${hex}"></span>` +
+    `<span class="pixel-xy">x ${pixel.x} · y ${pixel.y}</span>` +
+    `<code>${hex}</code><span class="muted small">${rgbaText(pixel.rgba)}</span>`;
+}
+
+function bindPixelInspector() {
+  const stage = dom.detailStage;
+  if (!stage) return;
+  stage.addEventListener("pointermove", event => showPixel(pixelAt(event.clientX, event.clientY)));
+  stage.addEventListener("pointerleave", () => showPixel(null));
+  stage.addEventListener("click", async event => {
+    const pixel = pixelAt(event.clientX, event.clientY);
+    if (!pixel) return;
+    await copyText(rgbaHex(pixel.rgba), `${rgbaHex(pixel.rgba)} copied`);
+  });
+}
+
+async function copyText(text, message) {
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    else throw new Error("clipboard unavailable");
+    toast(message || "Copied.");
+    return true;
+  } catch (_) {
+    const scratch = document.createElement("textarea");
+    scratch.value = text;
+    scratch.setAttribute("readonly", "");
+    scratch.style.position = "fixed";
+    scratch.style.opacity = "0";
+    document.body.append(scratch);
+    scratch.select();
+    const ok = document.execCommand?.("copy");
+    scratch.remove();
+    toast(ok ? (message || "Copied.") : "This browser would not let the app copy.", !ok);
+    return Boolean(ok);
+  }
 }
 
 function fact(label, value) {
@@ -591,7 +755,10 @@ async function renderDetail() {
   let natural = size;
   try {
     const canvas = await spriteCanvas(ref, Number.MAX_SAFE_INTEGER);
-    if (canvas) natural = paintDetail(canvas);
+    if (canvas) {
+      detailSprite = canvas;
+      natural = paintDetail(canvas);
+    }
   } catch (_) { /* the panel still shows the metadata if the crop fails */ }
 
   const sourceFile = sheet.source?.pngPath || sheet.source?.jsonPath || sheet.source?.plistPath || `${sheet.name}.png`;
@@ -604,9 +771,8 @@ async function renderDetail() {
       : "Original from the pack"),
     fact("Type", `PNG sprite${frame.trimmed ? ` · trimmed from ${frame.sourceSize?.width || "?"} × ${frame.sourceSize?.height || "?"}` : ""}`)
   ].join("");
-  dom.detailCaption.innerHTML = `Shown at ${zoom}× · ` + [1, 2, 4, 8].map(value =>
-    `<button type="button" class="btn ghost small ${value === zoom ? "is-active" : ""}" data-action="zoom" data-zoom="${value}">${value}×</button>`
-  ).join(" ");
+  updateZoomCaption(natural);
+  showPixel(null);
 
   if (state.replacement) await renderReplacement();
   else resetReplacementUi();
@@ -626,11 +792,29 @@ function releaseReplaceUrls() {
   replaceUrls = [];
 }
 
-/** Decodes any image the browser can read and re-encodes it as PNG bytes. */
+/**
+ * The picture as PNG bytes.
+ *
+ * A PNG that is dropped in is kept exactly as it is — re-encoding it would
+ * change semi-transparent pixels for no reason. Anything else (JPEG, WebP,
+ * BMP…) is converted once through a canvas.
+ */
 async function imageToPngBytes(file) {
+  const isPng = file.type === "image/png" || /\.png$/i.test(file.name || "");
+  if (isPng) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (isPngBytes(bytes)) {
+      const size = await pngDimensions(bytes).catch(() => null);
+      if (size && size.width * size.height > 40_000_000) {
+        throw new Error("That image is too large to fit a sprite slot — try one under 40 megapixels.");
+      }
+      if (size) return { bytes, width: size.width, height: size.height, untouched: true };
+    }
+  }
   let bitmap = null;
   if (typeof createImageBitmap === "function") {
-    try { bitmap = await createImageBitmap(file); } catch (_) { bitmap = null; }
+    try { bitmap = await createImageBitmap(file, { premultiplyAlpha: "none", colorSpaceConversion: "none" }); }
+    catch (_) { try { bitmap = await createImageBitmap(file); } catch (_) { bitmap = null; } }
   }
   if (!bitmap) bitmap = await decodePng(file);
   if (!bitmap.width || !bitmap.height) throw new Error("That image has no usable pixel size.");
@@ -641,9 +825,11 @@ async function imageToPngBytes(file) {
   const canvas = document.createElement("canvas");
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
-  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
-  return { bytes: await canvasToPngBytes(canvas), width: canvas.width, height: canvas.height };
+  return { bytes: await canvasToPngBytes(canvas), width: canvas.width, height: canvas.height, untouched: false };
 }
 
 async function chooseReplacement(file) {
@@ -716,10 +902,10 @@ async function applyReplacement() {
   if (!frame || !replacement) return;
   const mode = currentFitMode();
   try {
-    const canvas = await createSpriteReplacement(sheet.source.png, frame, replacement.bytes, mode);
-    const bytes = await canvasToPngBytes(canvas);
-    canvas.close?.();
-    applySpriteModification(state.pack, sheet.id, ref.name, bytes, { mode, sourceName: replacement.name });
+    // `exact` keeps the chosen file byte for byte; the other modes fit it and
+    // re-encode exactly once.
+    const result = await createSpriteReplacementBytes(sheet.source.png, frame, replacement.bytes, mode);
+    applySpriteModification(state.pack, sheet.id, ref.name, result.bytes, { mode, sourceName: replacement.name });
     await saveTextureWorkspace(state.pack);
     forgetSpriteCanvases(sheet.id, ref.name);
     state.replacement = null;
@@ -866,7 +1052,7 @@ function bindEvents() {
     // Small sprites open zoomed in enough to actually see; the caption says so.
     const selectedFrame = frameOf(state.selected);
     const selectedSize = logicalSize(selectedFrame || { frame: { width: 32, height: 32 } });
-    zoom = Math.max(1, Math.min(8, Math.round(160 / Math.max(selectedSize.width, selectedSize.height))));
+    zoom = snapZoom(160 / Math.max(selectedSize.width, selectedSize.height));
     // Only the highlight changes: rebuilding the grid would throw away every
     // sprite already cut out, and opening one should feel immediate.
     for (const other of dom.grid.querySelectorAll(".sprite-card.is-selected")) other.classList.remove("is-selected");
@@ -897,9 +1083,10 @@ function bindEvents() {
     if (!zoomButton) return;
     zoom = Number(zoomButton.dataset.zoom) || 1;
     const canvas = await spriteCanvas(refOf(state.selected), Number.MAX_SAFE_INTEGER);
-    if (canvas) paintDetail(canvas);
-    for (const button of dom.detailCaption.querySelectorAll("[data-action=zoom]")) {
-      button.classList.toggle("is-active", Number(button.dataset.zoom) === zoom);
+    if (canvas) updateZoomCaption(paintDetail(canvas));
+    else {
+      dom.detailStage.dataset.zoom = String(zoom);
+      updateZoomCaption();
     }
   });
 
@@ -944,6 +1131,7 @@ function bindEvents() {
   // Dropped files are routed here by the workspace shell (`workspace.js`).
 
   bindAtlas();
+  bindPixelInspector();
   setViewMode(state.viewMode);
 
   window.addEventListener("keydown", event => {
@@ -971,7 +1159,9 @@ start();
    same code paths the UI does. */
 export const studioApi = {
   state, openPack, importTextureFiles, createSpriteReplacement, fitRect, spriteCanvas,
-  setViewMode, selectSprite, frameBoxes,
+  setViewMode, selectSprite, frameBoxes, pixelAt, showPixel,
+  detailState: () => ({ zoom, shown: Number(dom.detailStage.dataset.zoom) || zoom, sprite: detailSprite
+    ? { width: detailSprite.width, height: detailSprite.height } : null }),
   openFiles: files => openPack(files),
   refreshSavedPacks: renderSavedPacks,
   showDropHint: value => dom.empty.classList.toggle("is-over", value)

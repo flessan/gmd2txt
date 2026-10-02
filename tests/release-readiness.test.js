@@ -134,7 +134,15 @@ test("the workspace is a single page with a single stylesheet, and every room li
   assert.match(studio, /extractSprite/, "each sprite can still be cut out as its own image");
   assert.match(studio, /createSpriteReplacement/, "replacement images are fitted to the sprite slot");
   assert.match(studio, /saveTextureWorkspace/, "texture workspaces are saved from the studio");
+  assert.match(studio, /function updateZoomCaption/, "the zoom caption is rebuilt on every repaint");
+  assert.match(studio, /imageSmoothingEnabled = false/, "pixels are never smoothed");
+  assert.match(studio, /function pixelAt/, "the pixel under the pointer can be read");
+  assert.match(studio, /createSpriteReplacementBytes/, "exact replacements keep their bytes");
   assert.match(studio, /export const studioApi/);
+  assert.match(page, /id="detail-stage"/, "the detail view has its own scrollable stage");
+  assert.match(page, /id="detail-grid"/, "the pixel grid is a separate canvas");
+  assert.match(page, /id="detail-pixel"/, "the detail view can report a single pixel");
+  assert.match(page, /data-atlas-zoom="1"[^>]*>1:1</, "the atlas offers a true 1:1 zoom");
 
   // The save reader reads Geometry Dash saves with the shared decoder.
   const saveReader = await readFile(path.join(root, "app/views/savefile.js"), "utf8");

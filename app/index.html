@@ -284,7 +284,8 @@
             <span class="atlas-hint">Click any sprite on the sheet to inspect it.</span>
             <span class="spacer"></span>
             <span class="atlas-zoom" id="atlas-zoom" role="group" aria-label="Atlas zoom">
-              <button type="button" class="btn ghost small is-active" data-atlas-zoom="1" aria-pressed="true">Fit</button>
+              <button type="button" class="btn ghost small is-active" data-atlas-zoom="fit" aria-pressed="true">Fit</button>
+              <button type="button" class="btn ghost small" data-atlas-zoom="1" aria-pressed="false" title="One sheet pixel per screen pixel">1:1</button>
               <button type="button" class="btn ghost small" data-atlas-zoom="2" aria-pressed="false">2×</button>
               <button type="button" class="btn ghost small" data-atlas-zoom="4" aria-pressed="false">4×</button>
             </span>
@@ -334,7 +335,13 @@
 
           <div class="detail-body">
             <figure class="detail-preview">
-              <div class="checker"><canvas id="detail-canvas" role="img" aria-label="Sprite preview"></canvas></div>
+              <div class="checker pixel-stage" id="detail-stage">
+                <div class="pixel-canvases">
+                  <canvas id="detail-canvas" role="img" aria-label="Sprite preview"></canvas>
+                  <canvas id="detail-grid" aria-hidden="true" hidden></canvas>
+                </div>
+              </div>
+              <p class="pixel-readout" id="detail-pixel"><span class="muted">Move over the sprite to read a pixel · click to copy its colour</span></p>
               <figcaption id="detail-caption" class="muted"></figcaption>
             </figure>
 
