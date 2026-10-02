@@ -29,9 +29,9 @@ works offline.
    Dragging a folder of exports in also works — everything is converted in one pass.
 2. **See what's inside.** Every result reports the level's object count, creator, song, portals,
    triggers, game modes and start position, so the file is not a black box.
-3. **Take the result.** Copy the text, download the converted file, download everything as a `.zip`,
-   open the *Readable text* view to inspect the decoded level, or hit **Play preview** to jump straight
-   into the bundled Geometry Dash runtime.
+3. **Take the result.** Every result carries **Save .gmd** (a real level file, with the name, creator
+   and song when the file knows them) and **Save .txt** (the bare level string, no metadata), plus
+   copy, a `.zip` of everything, a *Readable text* view, and **Play preview** — which is still alpha.
 
 The preview is *pre-warmed*: as soon as a level has been converted, the runtime boots quietly in the
 background and the converted level is handed to it, paused at the first obstacle. "Play preview" then
@@ -80,8 +80,8 @@ top (or with the number keys).
 | Room | What it does |
 | --- | --- |
 | **Convert files** | `.gmd` ⇄ `.txt`, both ways, in batches, with a preview of what is inside |
-| **Sprite studio** | every sprite in a texture pack as its own picture, with pixel sizes, and a replacement image fitted into the original slot (the saved packs *are* the texture workspaces) |
-| **Play a level** | the 22 bundled levels run in the bundled runtime, inside the page |
+| **Sprite studio** | the pack's sheet as one big atlas you click to inspect any sprite (with pixel sizes, zoom and a gallery switch), and a replacement image fitted into the original slot (the saved packs *are* the texture workspaces) |
+| **Play a level** | the 22 bundled levels run in the bundled runtime, inside the page (the preview is marked **alpha**) |
 | **Saved files** | the conversions kept in this browser, ready to download again |
 | **Save file reader** | read `CCGameManager.dat` — stats, coins, demons, level progress — with ids masked and nothing written back |
 

@@ -1,11 +1,10 @@
 /**
  * Sprite studio — the friendly half of the texture tooling.
  *
- * Open a texture pack and every sprite in it is cut out and shown as its own
- * picture. Clicking one opens it on its own with its real pixel size, and a
- * replacement image is scaled into the original slot automatically. The
- * advanced workshop still exists for repacking, merging and project work; this
- * page deliberately does one thing at a time.
+ * Open a texture pack and the sheet is shown as one large atlas image: click
+ * any sprite on it and it opens on its own with its real pixel size. A switch
+ * turns the same pack into a gallery of individual sprite pictures, and either
+ * way a replacement image is scaled into the original slot automatically.
  *
  * Performance notes: a sheet can hold thousands of sprites, so the atlas PNG is
  * decoded once per sheet, sprites are cropped from that cached bitmap, and the
@@ -21,6 +20,11 @@ const dom = {
   root: $("#workspace-root"),
   empty: $("#empty-state"),
   browser: $("#browser"),
+  atlas: $("#atlas"),
+  atlasSheets: $("#atlas-sheets"),
+  atlasCount: $("#atlas-count"),
+  atlasZoom: $("#atlas-zoom"),
+  viewSwitch: $("#view-switch"),
   grid: $("#sprite-grid"),
   search: $("#sprite-search"),
   sheetFilter: $("#sheet-filter"),
@@ -65,6 +69,8 @@ const dom = {
 const state = {
   pack: null,
   selected: null,
+  viewMode: "atlas",   // "atlas" = the sheet itself, "sprites" = one picture per sprite
+  atlasZoom: 1,        // 1 = fit the width, 2/4 = scroll around the sheet
   query: "",
   sheet: "all",
   sort: "sheet",
@@ -151,11 +157,27 @@ async function sheetAtlas(sheet) {
 }
 
 function releaseCaches() {
+  atlasBoxes.clear();
+  for (const bitmap of modificationBitmaps.values()) bitmap?.close?.();
+  modificationBitmaps.clear();
   for (const entry of atlasCache.values()) entry.bitmap?.close?.();
   atlasCache.clear();
   for (const canvas of spriteCanvasCache.values()) canvas.close?.();
   spriteCanvasCache.clear();
   spriteCanvasPromises.clear();
+}
+
+const modificationBitmaps = new Map();   // key -> decoded replacement art
+
+/** A decoded replacement image, so the atlas can show your edit on the sheet. */
+async function modificationBitmap(sheetId, name) {
+  const modification = state.pack?.modifications?.[sheetId]?.[name];
+  if (!modification?.png) return null;
+  const key = `${sheetId}\u0000${name}\u0000${modification.updatedAt || 0}`;
+  if (modificationBitmaps.has(key)) return modificationBitmaps.get(key);
+  const bitmap = await decodePng(modification.png).catch(() => null);
+  if (bitmap) modificationBitmaps.set(key, bitmap);
+  return bitmap;
 }
 
 function forgetSpriteCanvases(sheetId, name) {
@@ -254,6 +276,216 @@ function observeThumbs(root = dom.grid) {
   for (const canvas of root.querySelectorAll("canvas[data-thumb]")) thumbObserver.observe(canvas);
 }
 
+
+/* --------------------------------------------------------------- atlas view */
+
+/**
+ * The sheet itself, big, with every sprite clickable. The atlas is decoded once
+ * (the same cache the gallery uses) and painted into a canvas; a second canvas
+ * on top carries the hover/selection rectangle, so pointing at a sprite never
+ * repaints the sheet.
+ */
+const atlasPainting = new Map();   // sheetId -> Promise
+let atlasObserver = null;
+const atlasBoxes = new Map();      // sheetId -> [{ name, x, y, width, height }]
+
+function frameBoxes(sheet) {
+  if (atlasBoxes.has(sheet.id)) return atlasBoxes.get(sheet.id);
+  const boxes = Object.entries(sheet.parsed?.frames || {}).map(([name, frame]) => ({
+    name,
+    x: Number(frame.frame?.x) || 0,
+    y: Number(frame.frame?.y) || 0,
+    width: Number(frame.frame?.width) || 0,
+    height: Number(frame.frame?.height) || 0,
+    rotated: Boolean(frame.rotated)
+  })).filter(box => box.width > 0 && box.height > 0);
+  atlasBoxes.set(sheet.id, boxes);
+  return boxes;
+}
+
+/** Paints one sheet into its panel canvas at full atlas resolution. */
+async function paintAtlasPanel(panel) {
+  const sheetId = panel.dataset.sheet;
+  const sheet = state.pack?.sheets?.[sheetId];
+  const canvas = panel.querySelector("canvas.atlas-canvas");
+  const overlay = panel.querySelector("canvas.atlas-overlay");
+  if (!sheet || !canvas || !overlay) return;
+  if (atlasPainting.has(sheetId)) return atlasPainting.get(sheetId);
+  const job = (async () => {
+    const bitmap = await sheetAtlas(sheet);
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    overlay.width = bitmap.width;
+    overlay.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0);
+    // Whatever you replaced belongs on the sheet too — this is your pack, not the original.
+    for (const box of frameBoxes(sheet)) {
+      const edit = await modificationBitmap(sheet.id, box.name);
+      if (!edit) continue;
+      const logical = box.rotated ? { width: box.height, height: box.width } : { width: box.width, height: box.height };
+      try {
+        ctx.drawImage(edit, 0, 0, edit.width, edit.height, box.x, box.y, logical.width, logical.height);
+      } catch (_) { /* a stale edit must never blank the sheet */ }
+    }
+    panel.classList.add("is-painted");
+    paintAtlasOverlay(panel);
+  })().catch(() => null).finally(() => atlasPainting.delete(sheetId));
+  atlasPainting.set(sheetId, job);
+  return job;
+}
+
+/** Draws the hover/selection rectangle (and the sprite's name when it fits). */
+function paintAtlasOverlay(panel) {
+  const sheetId = panel.dataset.sheet;
+  const overlay = panel.querySelector("canvas.atlas-overlay");
+  if (!overlay || !overlay.width) return;
+  const ctx = overlay.getContext("2d");
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  const hovered = panel.dataset.hover;
+  const selectedName = state.selected?.sheetId === sheetId ? state.selected.name : null;
+  for (const [name, isSelected] of [[hovered, false], [selectedName, true]]) {
+    if (!name) continue;
+    const box = frameBoxes(state.pack.sheets[sheetId]).find(item => item.name === name);
+    if (!box) continue;
+    ctx.lineWidth = Math.max(2, Math.round(overlay.width / 500));
+    ctx.strokeStyle = isSelected ? "#3cadf5" : "rgba(255,255,255,.92)";
+    ctx.fillStyle = isSelected ? "rgba(60,173,245,.22)" : "rgba(255,255,255,.16)";
+    ctx.fillRect(box.x, box.y, box.width, box.height);
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+  }
+}
+
+/** Turns a click on the sheet into the sprite under the pointer. */
+function spriteAtPoint(sheet, panel, event) {
+  const canvas = panel.querySelector("canvas.atlas-canvas");
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+  const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+  const hits = frameBoxes(sheet).filter(box => x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height);
+  if (!hits.length) return null;
+  // Small sprites sit on top of the big sheet background — prefer the smallest.
+  return hits.sort((a, b) => a.width * a.height - b.width * b.height)[0];
+}
+
+async function selectSprite(sheetId, name, { reveal = false } = {}) {
+  state.selected = refOf({ sheetId, name });
+  state.replacement = null;
+  for (const panel of dom.atlasSheets.querySelectorAll(".atlas-panel")) paintAtlasOverlay(panel);
+  for (const card of dom.grid.querySelectorAll(".sprite-card")) {
+    card.classList.toggle("is-selected", card.dataset.sheet === sheetId && card.dataset.sprite === name);
+  }
+  await renderDetail();
+  if (reveal) dom.detail.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderAtlas() {
+  const sheets = Object.values(state.pack?.sheets || {})
+    .filter(sheet => state.sheet === "all" || sheet.id === state.sheet)
+    .filter(sheet => Object.keys(sheet.parsed?.frames || {}).length);
+  dom.atlas.hidden = sheets.length === 0;
+  if (!sheets.length) return;
+  const sprites = sheets.reduce((total, sheet) => total + Object.keys(sheet.parsed.frames).length, 0);
+  dom.atlasCount.textContent = `${sheets.length} sheet${sheets.length === 1 ? "" : "s"} · ${sprites} sprites to click`;
+  dom.atlasSheets.innerHTML = sheets.map(sheet => {
+    const frames = Object.keys(sheet.parsed.frames).length;
+    const source = sheet.source?.pngPath || `${sheet.name}.png`;
+    return `<figure class="atlas-panel" data-sheet="${esc(sheet.id)}">
+      <figcaption>
+        <span class="atlas-name"><strong>${esc(sheet.name)}</strong><small>${esc(source)}</small></span>
+        <span class="atlas-meta">${frames} sprite${frames === 1 ? "" : "s"}</span>
+      </figcaption>
+      <div class="atlas-frame">
+        <canvas class="atlas-canvas" role="img" aria-label="${esc(sheet.name)} sprite sheet"></canvas>
+        <canvas class="atlas-overlay" aria-hidden="true"></canvas>
+      </div>
+    </figure>`;
+  }).join("");
+
+  atlasObserver?.disconnect();
+  atlasObserver = new IntersectionObserver(entries => {
+    for (const item of entries) {
+      if (!item.isIntersecting) continue;
+      atlasObserver.unobserve(item.target);
+      paintAtlasPanel(item.target);
+    }
+  }, { rootMargin: "300px" });
+  for (const panel of dom.atlasSheets.querySelectorAll(".atlas-panel")) {
+    applyAtlasZoom(panel);
+    atlasObserver.observe(panel);
+  }
+}
+
+/** Fit, 2× or 4× — the sheet scrolls when it does not fit any more. */
+function applyAtlasZoom(panel = null) {
+  const targets = panel ? [panel] : dom.atlasSheets.querySelectorAll(".atlas-panel");
+  for (const item of targets) item.style.setProperty("--atlas-zoom", String(state.atlasZoom));
+  for (const button of dom.atlasZoom.querySelectorAll("[data-atlas-zoom]")) {
+    const active = Number(button.dataset.atlasZoom) === state.atlasZoom;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function bindAtlas() {
+  dom.atlasSheets.addEventListener("click", event => {
+    const panel = event.target.closest(".atlas-panel");
+    if (!panel) return;
+    const sheet = state.pack?.sheets?.[panel.dataset.sheet];
+    if (!sheet) return;
+    const hit = spriteAtPoint(sheet, panel, event);
+    if (!hit) return;
+    selectSprite(sheet.id, hit.name, { reveal: true });
+  });
+  dom.atlasSheets.addEventListener("pointermove", event => {
+    const panel = event.target.closest(".atlas-panel");
+    if (!panel) return;
+    const sheet = state.pack?.sheets?.[panel.dataset.sheet];
+    if (!sheet) return;
+    const hit = spriteAtPoint(sheet, panel, event);
+    const name = hit?.name || "";
+    if (panel.dataset.hover === name) return;
+    panel.dataset.hover = name;
+    panel.classList.toggle("is-pointing", Boolean(name));
+    paintAtlasOverlay(panel);
+  });
+  dom.atlasSheets.addEventListener("pointerleave", event => {
+    for (const panel of dom.atlasSheets.querySelectorAll(".atlas-panel[data-hover]")) {
+      if (panel.contains(event.relatedTarget)) continue;
+      delete panel.dataset.hover;
+      panel.classList.remove("is-pointing");
+      paintAtlasOverlay(panel);
+    }
+  });
+  dom.viewSwitch.addEventListener("click", event => {
+    const button = event.target.closest("[data-view-mode]");
+    if (!button) return;
+    setViewMode(button.dataset.viewMode);
+  });
+  dom.atlasZoom.addEventListener("click", event => {
+    const button = event.target.closest("[data-atlas-zoom]");
+    if (!button) return;
+    state.atlasZoom = Number(button.dataset.atlasZoom) || 1;
+    applyAtlasZoom();
+  });
+}
+
+function setViewMode(mode) {
+  state.viewMode = mode === "sprites" ? "sprites" : "atlas";
+  for (const button of dom.viewSwitch.querySelectorAll("[data-view-mode]")) {
+    const active = button.dataset.viewMode === state.viewMode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  dom.atlas.hidden = state.viewMode !== "atlas" || !state.pack;
+  dom.browser.hidden = !state.pack || state.viewMode !== "sprites";
+  if (state.viewMode === "atlas") renderAtlas();
+  else if (state.pack) { renderGrid(); renderDetail(); }
+}
+
 /* ------------------------------------------------------------------- render */
 
 function renderHeader() {
@@ -306,12 +538,14 @@ function renderSheetFilter() {
 function render() {
   const hasPack = Boolean(state.pack);
   dom.empty.hidden = hasPack;
-  dom.browser.hidden = !hasPack;
   dom.openSprites.hidden = hasPack;
+  dom.browser.hidden = !hasPack || state.viewMode !== "sprites";
+  dom.atlas.hidden = !hasPack || state.viewMode !== "atlas";
   renderHeader();
   if (!hasPack) return;
   renderSheetFilter();
-  renderGrid();
+  if (state.viewMode === "atlas") renderAtlas();
+  else renderGrid();
   renderDetail();
 }
 
@@ -628,8 +862,7 @@ function bindEvents() {
   dom.grid.addEventListener("click", event => {
     const card = event.target.closest("[data-action=open-sprite]");
     if (!card) return;
-    state.selected = { sheetId: card.dataset.sheet, name: card.dataset.sprite };
-    state.replacement = null;
+    selectSprite(card.dataset.sheet, card.dataset.sprite);
     // Small sprites open zoomed in enough to actually see; the caption says so.
     const selectedFrame = frameOf(state.selected);
     const selectedSize = logicalSize(selectedFrame || { frame: { width: 32, height: 32 } });
@@ -710,11 +943,17 @@ function bindEvents() {
 
   // Dropped files are routed here by the workspace shell (`workspace.js`).
 
+  bindAtlas();
+  setViewMode(state.viewMode);
+
   window.addEventListener("keydown", event => {
     if (event.key === "Escape" && state.selected) {
       state.selected = null;
       state.replacement = null;
-      render();
+      for (const panel of dom.atlasSheets.querySelectorAll(".atlas-panel")) paintAtlasOverlay(panel);
+      for (const card of dom.grid.querySelectorAll(".sprite-card.is-selected")) card.classList.remove("is-selected");
+      dom.detail.hidden = true;
+      resetReplacementUi();
     }
   });
 }
@@ -732,6 +971,7 @@ start();
    same code paths the UI does. */
 export const studioApi = {
   state, openPack, importTextureFiles, createSpriteReplacement, fitRect, spriteCanvas,
+  setViewMode, selectSprite, frameBoxes,
   openFiles: files => openPack(files),
   refreshSavedPacks: renderSavedPacks,
   showDropHint: value => dom.empty.classList.toggle("is-over", value)

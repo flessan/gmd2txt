@@ -40,6 +40,7 @@
     <symbol id="w-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></symbol>
     <symbol id="w-arrow" viewBox="0 0 24 24"><path d="M5 12h12m0 0-4.5-4.5M17 12l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="w-key" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="w-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15 6.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
@@ -73,7 +74,7 @@
           <a href="#play" data-view-link="play">Play</a>
           <a href="#saved" data-view-link="saved">Saved</a>
           <a href="#save" data-view-link="save">Save file</a>
-          <a href="https://github.com/flessan/gmd2txt" rel="noreferrer">Source</a>
+          <a class="nav-icon-link" href="https://github.com/flessan/gmd2txt" rel="noreferrer" aria-label="Source on GitHub" title="Source on GitHub"><svg class="icon" aria-hidden="true"><use href="#w-github"></use></svg></a>
         </nav>
       </div>
     </header>
@@ -252,6 +253,10 @@
             <span id="pack-name">No pack open</span>
           </div>
           <div class="studio-actions">
+            <div class="view-switch" id="view-switch" role="group" aria-label="How to show the pack">
+              <button type="button" class="btn ghost small" data-view-mode="atlas" aria-pressed="true">Atlas</button>
+              <button type="button" class="btn ghost small" data-view-mode="sprites" aria-pressed="false">Sprites</button>
+            </div>
             <button type="button" class="btn ghost" id="open-pack">Open pack…</button>
             <button type="button" class="btn ghost" id="open-sprites" hidden>Import PNG / PLIST</button>
             <button type="button" class="btn primary" id="download-pack" hidden>Download updated pack (.zip)</button>
@@ -272,6 +277,20 @@
             <button type="button" class="btn ghost" id="open-bundled">Try the bundled game sheets</button>
           </div>
           <small class="empty-note">Everything stays in this browser. Replacing a sprite never touches your original files.</small>
+        </section>
+
+        <section class="atlas" id="atlas" hidden aria-label="Sheet atlas">
+          <div class="atlas-toolbar">
+            <span class="atlas-hint">Click any sprite on the sheet to inspect it.</span>
+            <span class="spacer"></span>
+            <span class="atlas-zoom" id="atlas-zoom" role="group" aria-label="Atlas zoom">
+              <button type="button" class="btn ghost small is-active" data-atlas-zoom="1" aria-pressed="true">Fit</button>
+              <button type="button" class="btn ghost small" data-atlas-zoom="2" aria-pressed="false">2×</button>
+              <button type="button" class="btn ghost small" data-atlas-zoom="4" aria-pressed="false">4×</button>
+            </span>
+            <span class="count" id="atlas-count"></span>
+          </div>
+          <div class="atlas-sheets" id="atlas-sheets"></div>
         </section>
 
         <section class="browser" id="browser" hidden>
@@ -358,8 +377,8 @@
       <!-- ------------------------------------------------------------- play -->
       <section class="view" id="view-play" data-view="play" aria-label="Play a level">
         <div class="view-head">
-          <h1>Play a level</h1>
-          <p class="lede">The bundled Geometry Dash runtime runs here, inside the workspace. <kbd>Space</kbd> jumps, <kbd>Esc</kbd> closes the game. Nothing to install.</p>
+          <h1>Play a level <span class="alpha-badge" title="Gameplay playback is still being worked on">alpha</span></h1>
+          <p class="lede">The bundled Geometry Dash runtime runs here, inside the workspace. <kbd>Space</kbd> jumps, <kbd>Esc</kbd> closes the game. Nothing to install — and the preview itself is still in alpha.</p>
         </div>
         <div class="level-grid" id="level-grid" role="list"></div>
       </section>

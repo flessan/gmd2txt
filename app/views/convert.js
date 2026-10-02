@@ -436,25 +436,26 @@ function detailsMarkup(entry) {
     </div>
     <div class="details-block">
       <h4>What you get</h4>
+      <p class="muted small">Save <strong>.gmd</strong> for the game — or <strong>.txt</strong> for the bare level string, with no name, creator or song attached.</p>
       ${stringBlock}
       <div class="output-row">
         <pre class="preview">${esc(truncate(conversion.levelString, 200))}</pre>
         <div class="output-buttons">
           <button type="button" class="btn ghost small" data-action="copy-level-string" data-id="${esc(entry.id)}">${icon("copy")}Copy level string</button>
-          <button type="button" class="btn ghost small" data-action="download-level-string" data-id="${esc(entry.id)}">${icon("download")}Download .txt</button>
+          <button type="button" class="btn ghost small" data-action="download-level-string" data-id="${esc(entry.id)}">${icon("download")}Save as .txt</button>
         </div>
       </div>
       <div class="output-row">
         <pre class="preview">${esc(truncate(gmd, 200))}</pre>
         <div class="output-buttons">
-          <button type="button" class="btn ghost small" data-action="download-gmd" data-id="${esc(entry.id)}">${icon("download")}Download .gmd</button>
+          <button type="button" class="btn ghost small" data-action="download-gmd" data-id="${esc(entry.id)}">${icon("download")}Save as .gmd</button>
         </div>
       </div>
       ${readable ? `<div class="output-row">
         <pre class="preview">${esc(truncate(readable, 200))}</pre>
         <div class="output-buttons">
           <button type="button" class="btn ghost small" data-action="copy-readable" data-id="${esc(entry.id)}">${icon("copy")}Copy readable</button>
-          <button type="button" class="btn ghost small" data-action="download-readable" data-id="${esc(entry.id)}">${icon("download")}Download</button>
+          <button type="button" class="btn ghost small" data-action="download-readable" data-id="${esc(entry.id)}" title="The decoded, human-readable object list — not the level string">${icon("download")}Save readable .txt</button>
         </div>
       </div>` : ""}
     </div>
@@ -505,7 +506,6 @@ function cardMarkup(entry) {
   }
 
   const conversion = entry.conversion;
-  const target = entry.outputName || conversion.output.filename;
   const detailsOpen = entry.detailsOpen ? " open" : "";
   return `<article class="card">
     <div class="card-body">
@@ -526,9 +526,10 @@ function cardMarkup(entry) {
       </details>
     </div>
     <div class="card-actions">
-      <button type="button" class="btn primary" data-action="copy-output" data-id="${esc(entry.id)}">${icon("copy")}${conversion.targetKind === "txt" ? "Copy level string" : "Copy .gmd text"}</button>
-      <button type="button" class="btn" data-action="download-output" data-id="${esc(entry.id)}" title="${esc(target)}">${icon("download")}Download ${esc(conversion.targetKind)}</button>
-      <button type="button" class="btn ghost" data-action="play" data-id="${esc(entry.id)}" title="Preview this level in the bundled Geometry Dash runtime">${icon("play")}Play preview</button>
+      <button type="button" class="btn primary" data-action="download-gmd" data-id="${esc(entry.id)}" title="Save a .gmd level file (name, creator and song included when the file knows them)">${icon("download")}Save .gmd</button>
+      <button type="button" class="btn" data-action="download-level-string" data-id="${esc(entry.id)}" title="Save the raw level string as .txt — no name, creator or song, just the level">${icon("download")}Save .txt<small class="btn-sub">level string only</small></button>
+      <button type="button" class="btn ghost" data-action="play" data-id="${esc(entry.id)}" title="Preview this level in the bundled Geometry Dash runtime (alpha)">${icon("play")}Play preview<span class="alpha-badge">alpha</span></button>
+      <button type="button" class="btn ghost" data-action="copy-output" data-id="${esc(entry.id)}">${icon("copy")}Copy</button>
       <span class="grow"></span>
     </div>
   </article>`;
@@ -559,7 +560,7 @@ function renderHistory() {
         <small>${esc(item.document.source.filename || "no file name")} · ${esc(relativeTime(item.updatedAt || item.createdAt))} · ${number(item.document.content?.parsed?.objectCount || 0)} objects</small>
       </span>
       <button type="button" class="btn ghost small" data-action="saved-download" data-id="${esc(item.id)}">${icon("download")}Download</button>
-      <button type="button" class="btn ghost small" data-action="saved-play" data-id="${esc(item.id)}">${icon("play")}Preview</button>
+      <button type="button" class="btn ghost small" data-action="saved-play" data-id="${esc(item.id)}" title="Preview in the bundled runtime (alpha)">${icon("play")}Preview</button>
       <button type="button" class="btn icon ghost" data-action="saved-copy" data-id="${esc(item.id)}" aria-label="Copy the level string for ${esc(item.document.metadata?.name || "this level")}">${icon("copy")}</button>
       <button type="button" class="btn icon ghost" data-action="saved-delete" data-id="${esc(item.id)}" aria-label="Delete ${esc(item.document.metadata?.name || "this level")} from this browser">${icon("trash")}</button>
     </li>`).join("");
@@ -595,11 +596,14 @@ function downloadOutput(entry) {
   downloadBlob(new Blob([conversion.output.text], { type: conversion.targetKind === "gmd" ? "application/xml" : "text/plain" }), filename);
 }
 
+/** The raw level string and nothing else — no metadata, no wrapper. */
 function downloadLevelString(entry) {
   const name = sanitizeFileName(entry.conversion.displayName, "level");
   downloadText(entry.conversion.levelString, `${name}.txt`);
+  toast(`${name}.txt saved — level string only.`);
 }
 
+/** A real .gmd level file, built from the level string plus whatever is known. */
 function downloadGmd(entry) {
   const name = sanitizeFileName(entry.conversion.displayName, "level");
   const gmd = entry.conversion.targetKind === "gmd"

@@ -856,3 +856,55 @@ body.has-player { overflow: hidden; }
   #view-saved .saved-list .name strong { white-space: normal; }
   .level-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ============ atlas view, source logo and alpha badges ============
+   Added after the merge: the sprite studio shows the sheet itself, the source
+   link is the GitHub mark, and the play preview is marked as alpha where it
+   appears. */
+.cabinet-nav a.nav-icon-link { display: inline-flex; align-items: center; justify-content: center; padding: 8px 10px; }
+.nav-icon-link .icon { width: 18px; height: 18px; }
+.alpha-badge {
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-family: var(--mono);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: #0b1310; background: var(--gold); vertical-align: middle;
+}
+.btn .alpha-badge { background: rgba(248, 255, 0, .9); }
+.btn-sub { display: block; font-size: 11px; font-weight: 500; opacity: .75; letter-spacing: .01em; }
+.card-actions .btn { flex-wrap: wrap; }
+
+.view-switch { display: inline-flex; gap: 4px; padding: 3px; border: 2px solid var(--line); border-radius: 6px; background: #0d1512; }
+.view-switch .btn { border-radius: 4px; border-color: transparent; background: transparent; }
+.view-switch .btn.is-active { border-color: var(--green); color: var(--green); background: rgba(63, 202, 138, .12); }
+
+.atlas { display: grid; gap: 14px; }
+.atlas-toolbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.atlas-hint { color: var(--muted); font-size: 13px; }
+.atlas-sheets { display: grid; gap: 22px; }
+.atlas-panel { margin: 0; display: grid; gap: 8px; }
+.atlas-panel figcaption { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.atlas-name { display: grid; gap: 1px; min-width: 0; }
+.atlas-name strong { font-size: 15px; }
+.atlas-name small { color: var(--muted); font-size: 12px; }
+.atlas-meta { font-family: var(--mono); font-size: 12px; color: var(--green); }
+.atlas-frame {
+  position: relative; overflow: hidden; border: 2px solid var(--line); border-radius: 8px;
+  background: #0b1512 repeating-conic-gradient(rgba(255,255,255,.05) 0 25%, transparent 0 50%) 0 0 / 24px 24px;
+  cursor: pointer; touch-action: manipulation;
+}
+.atlas-canvas, .atlas-overlay { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.atlas-overlay { position: absolute; inset: 0; pointer-events: none; }
+.atlas-panel:not(.is-pointing) .atlas-frame { cursor: default; }
+.atlas-panel.is-pointing .atlas-frame { border-color: var(--green); }
+
+@media (max-width: 680px) {
+  .view-switch { width: 100%; justify-content: center; }
+  .atlas-meta { display: none; }
+}
+
+/* The atlas can be zoomed: fit, 2× or 4×, scrolling inside its own frame. */
+.atlas { --atlas-zoom: 1; }
+.atlas-frame { overflow: auto; max-height: 72vh; }
+.atlas-canvas, .atlas-overlay { width: calc(100% * var(--atlas-zoom)); }
+.atlas-overlay { position: absolute; top: 0; left: 0; }
+.atlas-zoom { display: inline-flex; gap: 4px; }
+.atlas-zoom .btn.is-active { border-color: var(--blue); color: var(--blue); }

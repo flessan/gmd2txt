@@ -94,9 +94,14 @@ test("the workspace is a single page with a single stylesheet, and every room li
     assert.match(page, new RegExp(`id="view-${room}"`), `missing the ${room} room`);
   }
   // The rooms keep the feature ids their modules drive.
-  for (const id of ["intake", "dropzone", "result-list", "sprite-grid", "detail", "level-grid", "saved-list", "save-drop", "player-overlay", "paste-dialog", "toasts"]) {
+  for (const id of ["intake", "dropzone", "result-list", "sprite-grid", "atlas", "atlas-sheets", "detail", "level-grid", "saved-list", "save-drop", "player-overlay", "paste-dialog", "toasts"]) {
     assert.match(page, new RegExp(`id="${id}"`), `missing #${id}`);
   }
+  // The source link is the GitHub mark, and the play preview is labelled alpha.
+  assert.match(page, /id="w-github"/, "the GitHub mark is needed for the source link");
+  assert.match(page, /aria-label="Source on GitHub"/, "an icon-only link needs its label");
+  assert.doesNotMatch(page, />Source</, "the source link should be the logo, not the word");
+  assert.match(page, /class="alpha-badge"/, "the play preview must be marked alpha");
   const rooms = page.match(/class="room[ "]/g) || [];
   assert.ok(rooms.length >= 5, `the landing view should be a collection of rooms (found ${rooms.length})`);
   for (const [, src] of page.matchAll(/src="(\.\/[^"]+)"/g)) assert.ok(existsSync(path.resolve(root, "app", src)), `page asset missing: ${src}`);
@@ -112,12 +117,21 @@ test("the workspace is a single page with a single stylesheet, and every room li
   // The converter room still uses the shared conversion core.
   const converter = await readFile(path.join(root, "app/views/convert.js"), "utf8");
   assert.match(converter, /from "\.\.\/\.\.\/core\/convert\/level-file\.js"/, "the converter UI must use the shared conversion core");
+  // A level can be saved as a .gmd or as the bare level string, and played.
+  assert.match(converter, /data-action="download-gmd"[^>]*>\$\{icon\("download"\)\}Save \.gmd/, "a Save .gmd button");
+  assert.match(converter, /data-action="download-level-string"[^>]*>\$\{icon\("download"\)\}Save \.txt/, "a Save .txt button");
+  assert.match(converter, /downloadText\(entry\.conversion\.levelString, `\$\{name\}\.txt`\)/, "the .txt save is the raw level string only");
+  assert.match(converter, /data-action="play"[\s\S]{0,160}alpha-badge/, "the play button is marked alpha");
   assert.match(converter, /export const converterApi/);
   assert.doesNotMatch(converter, /takeHandoffFiles/, "there is no cross-page drop box to drain");
 
   // The studio keeps the sprite-first contract: cut out, size it, replace it.
   const studio = await readFile(path.join(root, "app/views/textures.js"), "utf8");
-  assert.match(studio, /extractSprite/, "each sprite is cut out as its own image");
+  assert.match(studio, /function renderAtlas/, "the pack is shown as its atlas image");
+  assert.match(studio, /function spriteAtPoint/, "clicking the atlas inspects the sprite under the pointer");
+  assert.match(studio, /setViewMode/, "the atlas/gallery switch");
+  assert.match(studio, /modificationBitmap/, "replaced art is drawn back onto the sheet");
+  assert.match(studio, /extractSprite/, "each sprite can still be cut out as its own image");
   assert.match(studio, /createSpriteReplacement/, "replacement images are fitted to the sprite slot");
   assert.match(studio, /saveTextureWorkspace/, "texture workspaces are saved from the studio");
   assert.match(studio, /export const studioApi/);
