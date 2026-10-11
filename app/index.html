@@ -3,14 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1310">
+  <meta name="theme-color" content="#0F1512">
   <meta name="application-name" content="GMD Workspace">
   <meta name="description" content="A local workspace for Geometry Dash files: convert .gmd and .txt, browse and replace texture-pack sprites, play levels, and read saves. Nothing is uploaded.">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
   <title>GMD Workspace — local tools for Geometry Dash files</title>
+  <script>
+    // Material You theme boot: pick light/dark before the first paint so the
+    // workspace never flashes the wrong palette. Modes: system | light | dark.
+    (() => {
+      try {
+        const mode = localStorage.getItem("gmd2txt-theme") || "system";
+        const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.dataset.themeMode = mode;
+      } catch (_) {
+        document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="./assets/workspace.css">
   <script src="./app-meta.js"></script>
   <!-- The bundled runtime ships its own inflate + the official level names. -->
@@ -54,12 +68,17 @@
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
     <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9z" fill="currentColor"/></symbol>
     <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h11m0 0-3-3m3 3-3 3M20 16H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M18.6 5.4l-1.7 1.7M7.1 16.9l-1.7 1.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 20.5h6M12 17v3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="s-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="s-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="s-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m5 17 5-5 3.5 3.5L16 13l3 3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.4" fill="currentColor"/></symbol>
     <symbol id="s-swap" viewBox="0 0 24 24"><path d="M4 8h11m0 0-3-3m3 3-3 3M20 16H9m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="s-undo" viewBox="0 0 24 24"><path d="M9 8H5V4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 8a8 8 0 1 1-1 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   </svg>
+
+  <a class="skip-link" href="#workspace-main">Skip to content</a>
 
   <div id="workspace-root" data-ready="no" class="cabinet">
     <header class="cabinet-top">
@@ -69,17 +88,20 @@
           <span class="wordmark-text"><strong>GMD WORKSPACE</strong><small>local tools · nothing uploaded</small></span>
         </a>
         <nav class="cabinet-nav" aria-label="Workspace">
-          <a href="#convert" data-view-link="convert">Convert</a>
-          <a href="#textures" data-view-link="textures">Sprites</a>
-          <a href="#play" data-view-link="play">Play</a>
-          <a href="#saved" data-view-link="saved">Saved</a>
-          <a href="#save" data-view-link="save">Save file</a>
+          <a class="nav-pill" href="#convert" data-view-link="convert">Convert</a>
+          <a class="nav-pill" href="#textures" data-view-link="textures">Sprites</a>
+          <a class="nav-pill" href="#play" data-view-link="play">Play</a>
+          <a class="nav-pill" href="#saved" data-view-link="saved">Saved</a>
+          <a class="nav-pill" href="#save" data-view-link="save">Save file</a>
           <a class="nav-icon-link" href="https://github.com/flessan/gmd2txt" rel="noreferrer" aria-label="Source on GitHub" title="Source on GitHub"><svg class="icon" aria-hidden="true"><use href="#w-github"></use></svg></a>
+          <button type="button" class="nav-icon-link" id="theme-toggle" aria-label="Theme: system" title="Theme: system">
+            <svg class="icon" aria-hidden="true"><use href="#i-monitor" id="theme-icon"></use></svg>
+          </button>
         </nav>
       </div>
     </header>
 
-    <main class="wrap cabinet-main">
+    <main class="wrap cabinet-main" id="workspace-main">
       <!-- ------------------------------------------------------------- home -->
       <section class="view" id="view-home" data-view="home" aria-label="Workspace">
         <section class="intake" id="intake" aria-label="Drop a file">
@@ -440,7 +462,7 @@
     <form method="dialog" class="sheet-inner" id="paste-form">
       <div class="sheet-head">
         <h2>Paste a level string</h2>
-        <button type="button" class="btn icon ghost" data-close aria-label="Close">
+        <button type="button" class="btn-icon" data-close aria-label="Close">
           <svg class="icon"><use href="#i-close"></use></svg></button>
       </div>
       <p class="muted">Copy a level string out of Geometry Dash or another tool, paste it below, and press Convert. It usually starts with <code>H4sI</code>, but readable level text works too.</p>

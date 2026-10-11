@@ -3,7 +3,7 @@
   scope.GMDPLAYER_META = Object.freeze({
     name: "GMD Workspace",
     product: "GMD Workspace — local Geometry Dash file tools",
-    version: "2.2.2",
-    cacheRevision: "19"
+    version: "2.3.0",
+    cacheRevision: "20"
   });
 })(typeof self !== "undefined" ? self : globalThis);

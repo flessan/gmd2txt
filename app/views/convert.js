@@ -572,7 +572,7 @@ async function refreshHistory() {
     renderHistory();
     updateStorageEstimate();
   } catch (_) {
-    dom.saved.hidden = true;
+    // Storage is unavailable — keep whatever is listed and let the room say so.
   }
 }
 

@@ -23,6 +23,62 @@ const savedHint = document.getElementById("saved-hint");
 const versionBox = document.getElementById("version-label");
 const levelGrid = document.getElementById("level-grid");
 
+/* ----------------------------------------------------------- M3 theming -- */
+/* Material You theme: system → light → dark. The choice is remembered and the
+   boot script in index.html applies it before first paint; this module keeps
+   the toggle, the icon and the browser chrome colour in step. */
+
+const THEME_KEY = "gmd2txt-theme";
+const THEME_MODES = ["system", "light", "dark"];
+const THEME_LABELS = { system: "Theme: system", light: "Theme: light", dark: "Theme: dark" };
+const THEME_ICONS = { system: "#i-monitor", light: "#i-sun", dark: "#i-moon" };
+const themeToggle = document.getElementById("theme-toggle");
+const themeIcon = document.getElementById("theme-icon");
+
+function themeMode() {
+  const saved = document.documentElement.dataset.themeMode || root?.dataset.themeMode || "system";
+  return THEME_MODES.includes(saved) ? saved : "system";
+}
+
+function resolvedTheme() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function paintThemeChrome() {
+  const mode = themeMode();
+  const resolved = resolvedTheme();
+  if (themeIcon) themeIcon.setAttribute("href", THEME_ICONS[mode] || THEME_ICONS.system);
+  if (themeToggle) {
+    themeToggle.setAttribute("aria-label", THEME_LABELS[mode] || THEME_LABELS.system);
+    themeToggle.title = THEME_LABELS[mode] || THEME_LABELS.system;
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = resolved === "dark" ? "#0F1512" : "#F6FBF4";
+}
+
+function applyTheme(mode) {
+  const next = THEME_MODES.includes(mode) ? mode : "system";
+  try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* private mode: the theme still works, it just is not remembered */ }
+  document.documentElement.dataset.themeMode = next;
+  root && (root.dataset.themeMode = next);
+  const dark = next === "dark" || (next === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  paintThemeChrome();
+}
+
+function bindTheme() {
+  applyTheme(themeMode());
+  themeToggle?.addEventListener("click", () => {
+    const order = ["system", "light", "dark"];
+    const next = order[(order.indexOf(themeMode()) + 1) % order.length];
+    applyTheme(next);
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
+    if (themeMode() === "system") applyTheme("system");
+  });
+  paintThemeChrome();
+}
+
 const VIEWS = {
   home: { section: document.getElementById("view-home"), title: "GMD Workspace — local tools for Geometry Dash files" },
   convert: { section: document.getElementById("view-convert"), title: "Convert levels — GMD Workspace" },
@@ -261,6 +317,7 @@ function bindInstallHint() {
 }
 
 function start() {
+  bindTheme();
   showView(viewFromHash(), { scroll: false });
   window.addEventListener("hashchange", () => showView(viewFromHash()));
   bindIntake();
@@ -276,4 +333,4 @@ function start() {
 start();
 
 // Exposed for the browser test harness.
-window.__gmdWorkspace = { state, showView, routeFiles, toast };
+window.__gmdWorkspace = { state, showView, routeFiles, toast, applyTheme, themeMode, resolvedTheme };

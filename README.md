@@ -71,6 +71,15 @@ Any current Chrome, Edge, Firefox or Safari. Conversion prefers the built-in
 does not have them. Copying falls back to the legacy `execCommand` path when the async clipboard API
 is unavailable, and the whole app is usable from a phone.
 
+## Look and feel
+
+The workspace follows **Material Design 3 (Material You)**: a tonal palette derived from one green
+seed colour, shape and elevation scales, state-layer interactions on every control, and expressive
+type and spacing. Light and dark are both first-class themes — the icon button in the top bar
+cycles **system → light → dark**, and the choice is remembered in this browser. Motion respects
+`prefers-reduced-motion`, focus rings are always visible, and every layout reflows for phone,
+tablet and desktop.
+
 ## One page, five rooms
 
 The workspace is a single page (`/app/`) with a single stylesheet. There is no second page to load
