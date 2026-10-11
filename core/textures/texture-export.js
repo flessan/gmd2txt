@@ -3,6 +3,26 @@ import { patchPlist } from "./plist-writer.js";
 import { packSprites } from "./atlas-packer.js";
 import { writeZip } from "./zip.js";
 
+
+function escapeMetadataXml(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function updateAtlasMetadata(xml, width, height, pngPath) {
+  const pngName = String(pngPath || "atlas.png").replace(/\\/g, "/").split("/").pop();
+  const replaceValue = (source, key, value) => {
+    const pattern = new RegExp("(<key>\\s*" + key + "\\s*</key>\\s*<string>)[\\s\\S]*?(</string>)");
+    let changed = false;
+    source = source.replace(pattern, (match, open, close) => { changed = true; return open + escapeMetadataXml(value) + close; });
+    if (changed) return source;
+    const metadata = new RegExp("(<key>metadata</key>\\s*<dict>)([\\s\\S]*?)(</dict>)");
+    return source.replace(metadata, (match, open, body, close) => open + body + "\\n<key>" + key + "</key><string>" + escapeMetadataXml(value) + "</string>\\n" + close);
+  };
+  xml = replaceValue(xml, "size", "{" + width + "," + height + "}");
+  xml = replaceValue(xml, "textureFileName", pngName);
+  xml = replaceValue(xml, "realTextureFileName", pngName);
+  return xml;
+}
+
 function download(bytes, filename, mime) {
   const blob = new Blob([bytes], { type: mime }), url = URL.createObjectURL(blob), link = document.createElement("a");
   link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -60,7 +80,9 @@ export async function exportRepackedTexturePack(document, sheetId, options = {})
   const frameChanges = {};
   for (const [name, placement] of Object.entries(packed.placements)) frameChanges[name] = { frame: placement.frame, rotated: placement.rotated };
   files.set(sheet.source.pngPath, await canvasToPngBytes(packed.canvas));
-  files.set(sheet.source.plistPath, new TextEncoder().encode(patchPlist(sheet.parsed.plist, frameChanges)));
+  const patchedPlist = patchPlist(sheet.parsed.plist, frameChanges);
+  const updatedPlist = updateAtlasMetadata(patchedPlist, packed.width, packed.height, sheet.source.pngPath);
+  files.set(sheet.source.plistPath, new TextEncoder().encode(updatedPlist));
   packed.canvas.close?.();
   const name = `${(document.name || "texture-pack").replace(/[^\w.-]+/g, "_")}-repacked.zip`;
   download(writeZip(files), name, "application/zip");

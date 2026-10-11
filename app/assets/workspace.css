@@ -2030,3 +2030,83 @@ dl.facts dd { margin: 0; font-size: 14px; word-break: break-word; }
   .cabinet-top, .cabinet-foot, .toasts, .studio-toast, .player-overlay, .btn, .btn-icon { display: none !important; }
   body { background: white; color: black; }
 }
+/* ====================== resolution lab, atlas tools, UHD =================== */
+/* Restored texture utilities, styled in the Material 3 system: the resolution
+   lab dialog, atlas tools dialog, and the one-click UHD -> HD + Original flow. */
+
+#resolution-dialog .sheet-inner,
+#pack-tools-dialog .sheet-inner {
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+}
+#resolution-dialog label,
+#pack-tools-dialog label { display: block; font-weight: 600; font-size: 14px; }
+#resolution-dialog select,
+#pack-tools-dialog select { width: 100%; }
+
+.resolution-targets {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-md);
+  background: var(--surface-container-low);
+}
+.resolution-targets legend {
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#resolution-dialog .resolution-targets label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+#resolution-dialog .resolution-targets label span { margin-left: auto; }
+
+.resolution-report { display: grid; gap: 8px; }
+.resolution-report-row {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-md);
+  background: var(--surface-container-low);
+  overflow-wrap: anywhere;
+}
+.resolution-report-row strong { font-size: 13.5px; }
+.resolution-report-row span, .resolution-report-row small { color: var(--muted); font-size: 12px; }
+.resolution-report-warning {
+  border-left: 3px solid var(--tertiary);
+  border-radius: var(--shape-sm);
+  padding: 10px 14px;
+  font-size: 12.5px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.resolution-report-warning ul { margin: 6px 0 0; padding-left: 20px; }
+#pack-tools-note { line-height: 1.6; }
+
+.save-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* One-click UHD -> HD + Original */
+.uhd-quick {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-lg);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface-container-low));
+}
+.uhd-quick-head { display: grid; gap: 4px; justify-items: center; text-align: center; }
+.uhd-quick-head strong { font-size: 15px; }
+.uhd-quick-head small { color: var(--muted); font-size: 12.5px; max-width: 52ch; line-height: 1.55; }
+.uhd-quick-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }

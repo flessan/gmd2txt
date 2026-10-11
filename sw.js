@@ -39,6 +39,10 @@ const SHELL_ASSETS = [
   "../core/textures/plist-parser.js",
   "../core/textures/sprites.js",
   "../core/textures/texture-export.js",
+  "../core/textures/texture-download.js",
+  "../core/textures/atlas-packer.js",
+  "../core/textures/texture-merge.js",
+  "../core/textures/resolution-converter.js",
   "../core/textures/texture-pack.js",
   "../core/textures/zip.js"
 ];

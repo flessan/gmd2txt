@@ -91,6 +91,8 @@ top (or with the number keys).
 | **Convert files** | `.gmd` ⇄ `.txt`, both ways, in batches, with a preview of what is inside |
 | **Sprite studio** | the pack's sheet as one big atlas you click to inspect any sprite: true 1:1/2×/4× sheet zoom, a sprite view at whole-number zoom (1×–32×, never resampled) with a pixel grid and a colour readout under the pointer, and a replacement image fitted into the original slot — kept byte for byte in “Keep as-is”, re-encoded once otherwise (the saved packs *are* the texture workspaces) |
 | **Play a level** | the 22 bundled levels run in the bundled runtime, inside the page (the preview is marked **alpha**) |
+| **Texture resolution builder** | derive Original, HD and UHD PNG + PLIST pairs from a loaded UHD atlas — or convert a UHD pair into HD + Original with a single click |
+| **Atlas utilities** | undo / redo sprite changes, repack one compatible sheet, or merge compatible XML PLIST sheets |
 | **Saved files** | the conversions kept in this browser, ready to download again |
 | **Save file reader** | read `CCGameManager.dat` — stats, coins, demons, level progress — with ids masked and nothing written back |
 

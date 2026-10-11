@@ -10,9 +10,11 @@
  * decoded once per sheet, sprites are cropped from that cached bitmap, and the
  * crops are painted straight onto canvases (no PNG encoding in the hot path).
  */
-import { importTextureFiles, getSpriteEntries, applySpriteModification, resetSprite } from "../../core/textures/texture-pack.js";
+import { importTextureFiles, getSpriteEntries, applySpriteModification, resetSprite, undoTexture, redoTexture } from "../../core/textures/texture-pack.js";
 import { extractSprite, createSpriteReplacement, createSpriteReplacementBytes, canvasToPngBytes, decodePng, fitRect, isPngBytes, pngDimensions } from "../../core/textures/sprites.js";
-import { exportTexturePack, exportSplitSprites } from "../../core/textures/texture-export.js";
+import { exportTexturePack, exportSplitSprites, exportRepackedTexturePack } from "../../core/textures/texture-export.js";
+import { mergeTextureSheets } from "../../core/textures/texture-merge.js";
+import { buildResolutionArchive, normalizeAtlasStem } from "../../core/textures/resolution-converter.js";
 import { saveTextureWorkspace, getTextureWorkspace, getTextureWorkspaceSummaries } from "../../core/storage/texture-database.js";
 
 const $ = selector => document.querySelector(selector);
@@ -67,6 +69,27 @@ const dom = {
   replaceCancel: $("#replace-cancel"),
   toast: $("#studio-toast"),
   status: $("#studio-status"),
+  resolutionOpen: $("#resolution-open"),
+  resolutionDialog: $("#resolution-dialog"),
+  resolutionSource: $("#resolution-source"),
+  resolutionOriginal: $("#resolution-original"),
+  resolutionHd: $("#resolution-hd"),
+  resolutionUhd: $("#resolution-uhd"),
+  resolutionBuild: $("#resolution-build"),
+  resolutionDownload: $("#resolution-download"),
+  resolutionStatus: $("#resolution-status"),
+  resolutionReport: $("#resolution-report"),
+  packToolsOpen: $("#pack-tools-open"),
+  packToolsDialog: $("#pack-tools-dialog"),
+  packToolsSheet: $("#pack-tools-sheet"),
+  packToolsNote: $("#pack-tools-note"),
+  textureUndo: $("#texture-undo"),
+  textureRedo: $("#texture-redo"),
+  repackSheet: $("#repack-sheet"),
+  mergeSheets: $("#merge-sheets"),
+  uhdConvert: $("#uhd-convert"),
+  uhdQuickChoose: $("#uhd-quick-choose"),
+  uhdInput: $("#uhd-input"),
 };
 
 const state = {
@@ -81,6 +104,9 @@ const state = {
   limit: 150,
   replacement: null
 };
+
+let resolutionArchive = null;
+let resolutionReport = null;
 
 const BATCH = 150;
 let toastTimer = null;
@@ -521,9 +547,23 @@ function setViewMode(mode) {
 
 function renderHeader() {
   const pack = state.pack;
+  const eligible = eligiblePlistSheets();
   dom.packName.textContent = pack ? `${pack.name} · ${allSprites().length} sprites` : "No pack open";
   dom.downloadPack.hidden = !pack;
+  dom.resolutionOpen.hidden = !pack;
+  dom.packToolsOpen.hidden = !pack;
+  dom.resolutionOpen.disabled = !eligible.length;
+  dom.resolutionOpen.title = eligible.length
+    ? "Generate Original, HD and UHD variants from a loaded XML PLIST sheet"
+    : "Open a PNG + XML PLIST pair to enable resolution conversion";
+  if (dom.uhdConvert) {
+    dom.uhdConvert.hidden = !pack || !eligible.length;
+    dom.uhdConvert.title = eligible.length
+      ? "One click: build HD (½) and Original (¼) PNG + PLIST pairs from the UHD sheet and download them as one ZIP"
+      : "";
+  }
   dom.splitSheet.hidden = !pack || state.sheet === "all";
+  if (dom.packToolsDialog.open) refreshPackToolsDialog();
   const history = pack?.history?.length || 0;
   const replaced = Object.values(pack?.modifications || {}).reduce((total, group) => total + Object.keys(group).length, 0);
   dom.status.textContent = pack
@@ -928,6 +968,248 @@ async function revertSelected() {
   render();
 }
 
+
+/* ------------------------------------------------------ restored pack tools */
+function eligiblePlistSheets() {
+  return Object.values(state.pack?.sheets || {}).filter(sheet =>
+    sheet?.source?.png && sheet?.source?.plist && sheet?.parsed?.plist?.raw && Object.keys(sheet.parsed?.frames || {}).length
+  );
+}
+function leafName(path, fallback) {
+  return String(path || fallback).replace(/\\/g, "/").split("/").pop() || fallback;
+}
+function namedBlob(name, bytes, type) {
+  const blob = new Blob([bytes], { type });
+  Object.defineProperty(blob, "name", { value: leafName(name, "texture"), configurable: true });
+  return blob;
+}
+function downloadGeneratedBlob(blob, filename) {
+  if (!blob || !globalThis.URL?.createObjectURL) {
+    toast("This browser cannot download the generated archive.", true);
+    return false;
+  }
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  link.href = url; link.download = filename; link.style.display = "none";
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  return true;
+}
+function showStudioDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  document.body.classList.add("has-overlay");
+}
+function hideStudioDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.close === "function" && dialog.open) dialog.close();
+  else dialog.removeAttribute("open");
+  if (!document.querySelector("dialog[open]")) document.body.classList.remove("has-overlay");
+}
+function clearResolutionResult(message = "Choose a source sheet, then build the ZIP.") {
+  resolutionArchive = null;
+  resolutionReport = null;
+  dom.resolutionDownload.hidden = true;
+  dom.resolutionReport.hidden = true;
+  dom.resolutionReport.replaceChildren();
+  dom.resolutionStatus.textContent = message;
+}
+function renderResolutionSources() {
+  const sheets = eligiblePlistSheets();
+  const previous = dom.resolutionSource.value;
+  const preferred = (state.sheet !== "all" && sheets.some(sheet => sheet.id === state.sheet))
+    ? state.sheet
+    : sheets.find(sheet => /(?:^|[-_ ])uhd(?:$|[-_ .])/i.test(sheet.name))?.id || sheets[0]?.id || "";
+  dom.resolutionSource.innerHTML = sheets.map(sheet => {
+    const png = leafName(sheet.source.pngPath, sheet.name + ".png");
+    return '<option value="' + esc(sheet.id) + '">' + esc(sheet.name + " — " + png) + "</option>";
+  }).join("");
+  if (sheets.some(sheet => sheet.id === previous)) dom.resolutionSource.value = previous;
+  else dom.resolutionSource.value = preferred;
+  dom.resolutionBuild.disabled = !sheets.length;
+  clearResolutionResult(sheets.length
+    ? "The selected sheet will be treated as the UHD source atlas."
+    : "No compatible XML PLIST + PNG pair is loaded. Open a UHD atlas with its matching .plist first.");
+}
+function renderResolutionReport(result) {
+  const variants = result.variants.map(item =>
+    '<div class="resolution-report-row"><strong>' + esc(item.label) + ' · ' + item.width + ' × ' + item.height + ' px</strong>' +
+    '<span>' + esc(item.pngName) + '</span><span>' + esc(item.plistName) + '</span>' +
+    '<small>' + item.frameCount + ' frames · ' + Math.round((item.pngBytes + item.plistBytes) / 1024) + ' KB</small></div>'
+  ).join("");
+  const warnings = [...new Set([...(result.warnings || []), ...result.variants.flatMap(item => item.warnings || [])])];
+  const warningHtml = warnings.length
+    ? '<div class="resolution-report-warning"><strong>Review before using in-game</strong><ul>' + warnings.map(item => '<li>' + esc(item) + '</li>').join("") + '</ul></div>'
+    : "";
+  dom.resolutionReport.innerHTML = variants + warningHtml;
+  dom.resolutionReport.hidden = false;
+}
+function openResolutionTools() {
+  if (!state.pack) return;
+  renderResolutionSources();
+  showStudioDialog(dom.resolutionDialog);
+}
+async function buildSelectedResolutions() {
+  const sheet = state.pack?.sheets?.[dom.resolutionSource.value];
+  if (!sheet) { toast("Choose a valid XML PLIST sheet.", true); return; }
+  const targets = [];
+  if (dom.resolutionOriginal.checked) targets.push("original");
+  if (dom.resolutionHd.checked) targets.push("hd");
+  if (dom.resolutionUhd.checked) targets.push("uhd");
+  if (!targets.length) { toast("Choose at least one output resolution.", true); return; }
+
+  const pngName = leafName(sheet.source.pngPath, sheet.name + ".png");
+  const plistName = leafName(sheet.source.plistPath, sheet.name + ".plist");
+  const png = namedBlob(pngName, sheet.source.png, "image/png");
+  const plist = namedBlob(plistName, sheet.source.plist, "application/xml");
+  clearResolutionResult("Validating frames and preparing the selected outputs…");
+  dom.resolutionBuild.disabled = true;
+  dom.resolutionBuild.textContent = "Building…";
+  dom.resolutionBuild.classList.add("is-loading");
+  dom.resolutionStatus.setAttribute("aria-busy", "true");
+  try {
+    resolutionReport = await buildResolutionArchive(png, plist, targets, { stem: normalizeAtlasStem(pngName) });
+    resolutionArchive = resolutionReport.blob;
+    renderResolutionReport(resolutionReport);
+    const warningCount = new Set([...(resolutionReport.warnings || []), ...resolutionReport.variants.flatMap(item => item.warnings || [])]).size;
+    dom.resolutionStatus.textContent = "Built " + resolutionReport.variants.length + " version(s), " + resolutionReport.source.frameCount + " frames checked" + (warningCount ? " · " + warningCount + " note(s) to review" : " · validation passed");
+    dom.resolutionDownload.hidden = false;
+    toast("Resolution ZIP built. Review any notes, then download it.");
+  } catch (error) {
+    clearResolutionResult(error?.message || "Could not convert this atlas.");
+    dom.resolutionStatus.textContent = error?.message || "Could not convert this atlas.";
+    toast(error?.message || "Could not convert this atlas.", true);
+  } finally {
+    dom.resolutionBuild.disabled = false;
+    dom.resolutionBuild.textContent = "Build ZIP";
+    dom.resolutionBuild.classList.remove("is-loading");
+    dom.resolutionStatus.removeAttribute("aria-busy");
+  }
+}
+function refreshPackToolsDialog() {
+  const sheets = eligiblePlistSheets();
+  const previous = dom.packToolsSheet.value;
+  dom.packToolsSheet.innerHTML = sheets.map(sheet =>
+    '<option value="' + esc(sheet.id) + '">' + esc(sheet.name) + '</option>'
+  ).join("");
+  if (sheets.some(sheet => sheet.id === previous)) dom.packToolsSheet.value = previous;
+  else if (sheets.some(sheet => sheet.id === state.sheet)) dom.packToolsSheet.value = state.sheet;
+  dom.textureUndo.disabled = !(state.pack?.historyIndex > 0);
+  dom.textureRedo.disabled = !(state.pack && state.pack.historyIndex < (state.pack.history || []).length);
+  const mergeable = sheets.length >= 2;
+  dom.mergeSheets.disabled = !mergeable;
+  dom.repackSheet.disabled = !sheets.length;
+  dom.packToolsNote.textContent = sheets.length
+    ? sheets.length + " XML PLIST sheet(s) can be repacked. Merge includes these compatible sheets only; JSON atlases are kept as-is."
+    : "This pack has no compatible XML PLIST sheets for merging or repacking. JSON atlas sheets can still be browsed and edited.";
+}
+async function applyTextureHistory(direction) {
+  if (!state.pack) return;
+  const before = Number(state.pack.historyIndex) || 0;
+  if (direction === "undo") undoTexture(state.pack);
+  else redoTexture(state.pack);
+  if (state.pack.historyIndex === before) return;
+  await saveTextureWorkspace(state.pack);
+  releaseCaches();
+  await render();
+  await renderSavedPacks();
+  if (dom.packToolsDialog.open) refreshPackToolsDialog();
+  toast(direction === "undo" ? "Undid the last sprite change." : "Redid the sprite change.");
+}
+async function mergeCurrentPlistSheets() {
+  const sheets = eligiblePlistSheets();
+  if (sheets.length < 2) { toast("Merge needs at least two compatible XML PLIST sheets.", true); return; }
+  try {
+    const result = await mergeTextureSheets(state.pack, sheets.map(sheet => sheet.id));
+    if (result) toast("Merged " + result.spriteCount + " sprites into a new atlas ZIP.");
+  } catch (error) { toast(error?.message || "The sheets could not be merged.", true); }
+}
+async function repackCurrentSheet() {
+  const sheetId = dom.packToolsSheet.value;
+  if (!state.pack || !sheetId) { toast("Choose a PLIST sheet to repack.", true); return; }
+  try {
+    const result = await exportRepackedTexturePack(state.pack, sheetId);
+    if (result) toast("Repacked atlas exported at " + result.width + " × " + result.height + " px.");
+  } catch (error) { toast(error?.message || "The atlas could not be repacked.", true); }
+}
+
+/* ------------------------------------------- one-click UHD → HD + Original */
+/* The fast path of the resolution lab: no dialog, no target checkboxes. Pick
+   the UHD PNG + PLIST pair (or use the sheet already open) and one click later
+   the derived HD (½) and Original (¼) PNG + PLIST pairs download as one ZIP,
+   with every frame rect, offset, source size and atlas dimension rescaled. */
+
+function pickUhdSheet() {
+  const sheets = eligiblePlistSheets();
+  if (!sheets.length) return null;
+  if (state.sheet !== "all") {
+    const current = sheets.find(sheet => sheet.id === state.sheet);
+    if (current) return current;
+  }
+  return sheets.find(sheet =>
+    /(?:^|[-_ .])uhd(?:$|[-_ .])/i.test(sheet.name) ||
+    /-?uhd\.png$/i.test(leafName(sheet.source.pngPath, ""))
+  ) || sheets[0];
+}
+
+function setUhdBusy(busy) {
+  for (const button of [dom.uhdConvert, dom.uhdQuickChoose]) {
+    if (!button) continue;
+    button.disabled = busy;
+    button.classList.toggle("is-loading", busy);
+    button.setAttribute("aria-busy", busy ? "true" : "false");
+  }
+}
+
+async function runUhdQuickConvert(png, plist) {
+  if (!png || !plist) {
+    toast("This needs both the UHD PNG atlas and its matching .plist file.", true);
+    return;
+  }
+  setUhdBusy(true);
+  try {
+    const result = await buildResolutionArchive(png, plist, ["original", "hd"], {
+      stem: normalizeAtlasStem(png.name || "texture-atlas")
+    });
+    const stem = normalizeAtlasStem(result.source.filename);
+    const summary = result.variants.map(item => `${item.label} ${item.width}×${item.height}`).join(" · ");
+    const warnings = [...new Set([...(result.warnings || []), ...result.variants.flatMap(item => item.warnings || [])])];
+    if (downloadGeneratedBlob(result.blob, `${stem}-resolutions.zip`)) {
+      toast(`UHD → ${summary} · ZIP downloaded (${result.source.frameCount} frames checked)` +
+        (warnings.length ? ` · ${warnings.length} note(s): ${warnings[0]}` : ""), Boolean(warnings.length));
+    }
+  } catch (error) {
+    toast(error?.message || "This atlas could not be converted.", true);
+  } finally {
+    setUhdBusy(false);
+  }
+}
+
+async function quickConvertFromPack() {
+  const sheet = pickUhdSheet();
+  if (!sheet) {
+    toast("Open a UHD PNG + PLIST pair first (or use “Convert UHD → HD + Original” to pick one).", true);
+    return;
+  }
+  const pngName = leafName(sheet.source.pngPath, sheet.name + ".png");
+  const plistName = leafName(sheet.source.plistPath, sheet.name + ".plist");
+  await runUhdQuickConvert(
+    namedBlob(pngName, sheet.source.png, "image/png"),
+    namedBlob(plistName, sheet.source.plist, "application/xml")
+  );
+}
+
+async function quickConvertFromFiles(fileList) {
+  const files = [...(fileList || [])].filter(file => file?.name);
+  const png = files.find(file => /\.png$/i.test(file.name));
+  const plist = files.find(file => /\.plist$/i.test(file.name));
+  if (!png || !plist) {
+    toast("Choose the UHD PNG and its matching .plist together (hold Ctrl or ⌘ to select both).", true);
+    return;
+  }
+  await runUhdQuickConvert(png, plist);
+}
+
 /* ------------------------------------------------------------------ loading */
 
 async function openPack(files, packName = null) {
@@ -1019,6 +1301,32 @@ function bindEvents() {
   dom.packInput.addEventListener("change", () => openPack(dom.packInput.files));
   dom.folderInput.addEventListener("change", () => openPack(dom.folderInput.files));
   dom.openBundled.addEventListener("click", openBundledSheets);
+  dom.resolutionOpen.addEventListener("click", openResolutionTools);
+  dom.packToolsOpen.addEventListener("click", () => { refreshPackToolsDialog(); showStudioDialog(dom.packToolsDialog); });
+  for (const close of dom.resolutionDialog.querySelectorAll("[data-resolution-close]")) close.addEventListener("click", () => hideStudioDialog(dom.resolutionDialog));
+  for (const close of dom.packToolsDialog.querySelectorAll("[data-pack-tools-close]")) close.addEventListener("click", () => hideStudioDialog(dom.packToolsDialog));
+  for (const dialog of [dom.resolutionDialog, dom.packToolsDialog]) {
+    dialog.addEventListener("click", event => { if (event.target === dialog) hideStudioDialog(dialog); });
+    dialog.addEventListener("close", () => { if (!document.querySelector("dialog[open]")) document.body.classList.remove("has-overlay"); });
+  }
+  dom.resolutionSource.addEventListener("change", () => clearResolutionResult("Source changed. Build the ZIP again to refresh the output."));
+  for (const target of [dom.resolutionOriginal, dom.resolutionHd, dom.resolutionUhd]) {
+    target.addEventListener("change", () => clearResolutionResult("Output selection changed. Build the ZIP again to refresh the output."));
+  }
+  dom.resolutionBuild.addEventListener("click", buildSelectedResolutions);
+  dom.resolutionDownload.addEventListener("click", () => {
+    if (!resolutionArchive || !resolutionReport) return;
+    const stem = normalizeAtlasStem(resolutionReport.source.filename);
+    if (downloadGeneratedBlob(resolutionArchive, stem + "-resolution-pack.zip")) toast("Downloaded the resolution pack.");
+  });
+  dom.uhdConvert?.addEventListener("click", quickConvertFromPack);
+  dom.uhdQuickChoose?.addEventListener("click", () => { dom.uhdInput.value = ""; dom.uhdInput.click(); });
+  dom.uhdInput?.addEventListener("change", () => { quickConvertFromFiles(dom.uhdInput.files); dom.uhdInput.value = ""; });
+  dom.packToolsSheet.addEventListener("change", refreshPackToolsDialog);
+  dom.textureUndo.addEventListener("click", () => applyTextureHistory("undo").catch(error => toast(error?.message || "Undo failed.", true)));
+  dom.textureRedo.addEventListener("click", () => applyTextureHistory("redo").catch(error => toast(error?.message || "Redo failed.", true)));
+  dom.mergeSheets.addEventListener("click", mergeCurrentPlistSheets);
+  dom.repackSheet.addEventListener("click", repackCurrentSheet);
 
   dom.downloadPack.addEventListener("click", async () => {
     if (!state.pack) return;

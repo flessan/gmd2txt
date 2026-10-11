@@ -5,13 +5,17 @@
  * behind Geometry Dash's obfuscation), summarised in plain language, and never
  * written back. Sensitive fields (player ids) are masked before they are shown.
  */
-import { decodeSaveFile, maskSensitiveFields } from "../../core/saves/save-decoder.js";
+import { decodeSaveFile, maskSensitiveFields, serializeSaveXml } from "../../core/saves/save-decoder.js";
+import { importSave } from "../../core/import/handlers/save-importer.js";
+import { createLevel } from "../../core/storage/database.js";
 
 const root = document.getElementById("workspace-root");
 const drop = document.getElementById("save-drop");
 const input = document.getElementById("save-input");
 const choose = document.getElementById("save-choose");
 const report = document.getElementById("save-report");
+let activeSaveFile = null;
+let activeDecoded = null;
 
 const SAVE_TITLES = {
   "game-manager": "CCGameManager.dat — player save",
@@ -45,6 +49,11 @@ function renderReport(file, decoded) {
   const levels = (normalized.levels || []).filter(level => level.name);
   const groups = normalized.collections || [];
   const safe = maskSensitiveFields({ ...normalized.player, ...(normalized.misc || {}) });
+  const safeTree = maskSensitiveFields(decoded.tree);
+  const statValues = normalized.statValues || [];
+  const questsAndAchievements = maskSensitiveFields({ quests: normalized.quests, achievements: normalized.achievements });
+  const collections = maskSensitiveFields(normalized.collections || []);
+  const localGroups = Object.entries(decoded.tree || {}).filter(([key]) => /^LLM_\d+$/i.test(key));
   const version = decoded.gameVersion || normalized.binaryVersion;
 
   report.hidden = false;
@@ -96,18 +105,116 @@ function renderReport(file, decoded) {
         : `<p class="muted small">No official level records in this file.</p>`}
     </section>
 
+    <div class="save-actions" aria-label="Export save data">
+      ${decoded.saveType === "local-levels" ? '<button type="button" class="btn primary small" data-save-action="import-local-levels">Import embedded levels</button>' : ""}
+      <button type="button" class="btn ghost small" data-save-action="download-original">Download original .dat</button>
+      <button type="button" class="btn ghost small" data-save-action="download-xml">Download masked XML</button>
+      <button type="button" class="btn ghost small" data-save-action="download-json">Download masked JSON</button>
+    </div>
+
     <details class="save-extra">
-      <summary>Hidden identifiers and raw fields</summary>
-      <p class="muted small">Player ids and other private keys are masked before they are shown — the reader never displays them in full.</p>
-      <pre>${esc(JSON.stringify(safe, null, 2).slice(0, 4000))}${JSON.stringify(safe).length > 4000 ? "\n…" : ""}</pre>
+      <summary>Stats breakdown · ${number(statValues.length)} values</summary>
+      ${statValues.length
+        ? `<pre>${esc(JSON.stringify(maskSensitiveFields(statValues), null, 2).slice(0, 10000))}${JSON.stringify(statValues).length > 10000 ? "\n…" : ""}</pre>`
+        : '<p class="muted small">No GS_value stat entries were found in this save.</p>'}
+    </details>
+
+    <details class="save-extra">
+      <summary>Quests and achievements</summary>
+      <pre>${esc(JSON.stringify(questsAndAchievements, null, 2).slice(0, 8000))}${JSON.stringify(questsAndAchievements).length > 8000 ? "\n…" : ""}</pre>
+    </details>
+
+    <details class="save-extra">
+      <summary>Game-state collections · ${number(collections.length)} groups</summary>
+      <pre>${esc(JSON.stringify(collections, null, 2).slice(0, 10000))}${JSON.stringify(collections).length > 10000 ? "\n…" : ""}</pre>
+    </details>
+
+    ${localGroups.length ? `<details class="save-extra">
+      <summary>Local-level groups · ${number(localGroups.length)} groups detected</summary>
+      <p class="muted small">These fields are shown as masked source data. The current reader does not yet convert each LLM record into a separate importable level.</p>
+      <pre>${esc(JSON.stringify(maskSensitiveFields(Object.fromEntries(localGroups)), null, 2).slice(0, 10000))}${JSON.stringify(localGroups).length > 10000 ? "\n…" : ""}</pre>
+    </details>` : ""}
+
+    <details class="save-extra">
+      <summary>Other fields and full plist tree (masked)</summary>
+      <p class="muted small">Sensitive keys such as player IDs, UDIDs, tokens and account details are masked in the displayed tree and exported XML/JSON.</p>
+      <pre>${esc(JSON.stringify(safeTree, null, 2).slice(0, 10000))}${JSON.stringify(safeTree).length > 10000 ? "\n…" : ""}</pre>
     </details>
 
     <p class="save-note">
       <svg class="icon"><use href="#i-lock"></use></svg>
-      Nothing was written or uploaded. To change a save you would edit it in the game itself — this room only reads.
+      The source .dat is never modified or uploaded. If you choose Import embedded levels, decoded copies are added to this browser’s Library; existing levels are skipped rather than overwritten.
     </p>`;
 }
 
+
+function toastMessage(message) {
+  const host = document.getElementById("toasts");
+  if (!host) {
+    const note = document.createElement("p");
+    note.className = "muted small";
+    note.textContent = message;
+    report.prepend(note);
+    return;
+  }
+  const node = document.createElement("div");
+  node.className = "toast";
+  node.textContent = message;
+  host.append(node);
+  setTimeout(() => node.remove(), 4200);
+}
+function downloadSaveExport(blobOrText, filename, mime = "application/octet-stream") {
+  const blob = blobOrText instanceof Blob ? blobOrText : new Blob([blobOrText], { type: mime });
+  if (!globalThis.URL?.createObjectURL) return false;
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  link.href = url; link.download = filename; link.style.display = "none";
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  return true;
+}
+report.addEventListener("click", async event => {
+  const button = event.target.closest("[data-save-action]");
+  if (!button || !activeSaveFile || !activeDecoded) return;
+  const action = button.dataset.saveAction;
+  try {
+    if (action === "download-original") {
+      downloadSaveExport(activeSaveFile, activeSaveFile.name || "GeometryDash.dat");
+    } else if (action === "download-xml") {
+      const xml = serializeSaveXml(maskSensitiveFields(activeDecoded.tree));
+      downloadSaveExport(xml, (activeSaveFile.name || "GeometryDash.dat").replace(/\.dat$/i, "") + "-masked.xml", "application/xml;charset=utf-8");
+    } else if (action === "download-json") {
+      const payload = {
+        sourceFile: activeSaveFile.name || "GeometryDash.dat",
+        saveType: activeDecoded.saveType,
+        gameVersion: activeDecoded.gameVersion,
+        encoding: activeDecoded.encoding,
+        diagnostics: activeDecoded.diagnostics,
+        normalized: maskSensitiveFields(activeDecoded.normalized),
+        tree: maskSensitiveFields(activeDecoded.tree)
+      };
+      downloadSaveExport(JSON.stringify(payload, null, 2), (activeSaveFile.name || "GeometryDash.dat").replace(/\.dat$/i, "") + "-masked.json", "application/json;charset=utf-8");
+    } else if (action === "import-local-levels") {
+      button.disabled = true;
+      button.textContent = "Extracting…";
+      const snapshot = await importSave([activeSaveFile]);
+      const levels = snapshot.normalized?.localLevels || [];
+      let added = 0, duplicates = 0;
+      for (const item of levels) {
+        const result = await createLevel(item.document, { duplicateMode: "skip" });
+        if (result?.duplicate) duplicates++;
+        else added++;
+      }
+      const errors = snapshot.normalized?.localLevelErrors?.length || 0;
+      toastMessage(added + " local level(s) added" + (duplicates ? " · " + duplicates + " duplicate(s)" : "") + (errors ? " · " + errors + " record(s) skipped" : "") + ".");
+      button.disabled = false;
+      button.textContent = "Import embedded levels";
+    }
+  } catch (error) {
+    const extractButton = report.querySelector('[data-save-action="import-local-levels"]');
+    if (extractButton) { extractButton.disabled = false; extractButton.textContent = "Import embedded levels"; }
+    toastMessage(error?.message || "This save export could not be prepared.");
+  }
+});
 async function openSaveFile(file) {
   if (!file) return;
   report.hidden = false;
@@ -115,8 +222,12 @@ async function openSaveFile(file) {
   root.dataset.busy = "yes";
   try {
     const decoded = await decodeSaveFile(file);
+    activeSaveFile = file;
+    activeDecoded = decoded;
     renderReport(file, decoded);
   } catch (error) {
+    activeSaveFile = null;
+    activeDecoded = null;
     showError(error?.message || "This file is not a Geometry Dash save.", error?.hint || "");
   } finally {
     delete root.dataset.busy;
