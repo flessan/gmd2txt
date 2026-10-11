@@ -19,6 +19,23 @@ function patchedFrameXml(frame, placement) {
   for (const change of changes) output = output.slice(0, change.start) + change.text + output.slice(change.end);
   return output;
 }
+
+function patchMergedMetadata(xml, width, height, pngPath) {
+  const pngName = String(pngPath || "atlas.png").replace(/\\/g, "/").split("/").pop();
+  const replaceValue = (source, key, value) => {
+    const pattern = new RegExp("(<key>\\s*" + key + "\\s*</key>\\s*<string>)[\\s\\S]*?(</string>)");
+    let changed = false;
+    source = source.replace(pattern, (match, open, close) => { changed = true; return open + xmlEscape(value) + close; });
+    if (changed) return source;
+    const metadata = new RegExp("(<key>metadata</key>\\s*<dict>)([\\s\\S]*?)(</dict>)");
+    return source.replace(metadata, (match, open, body, close) => open + body + "\\n<key>" + key + "</key><string>" + xmlEscape(value) + "</string>\\n" + close);
+  };
+  xml = replaceValue(xml, "size", "{" + width + "," + height + "}");
+  xml = replaceValue(xml, "textureFileName", pngName);
+  xml = replaceValue(xml, "realTextureFileName", pngName);
+  return xml;
+}
+
 function availablePath(map, target) { let path = target, count = 1; while (map.has(path)) path = target.replace(/(\.[^.]+)?$/, `-${count++}$1`); return path; }
 
 /** Merge frames from multiple independent sheets into a new atlas; original sheets and metadata remain untouched. */
@@ -48,11 +65,12 @@ export async function mergeTextureSheets(document, sheetIds = Object.keys(docume
       const xmlFrames = entries.map(({ mergedName, frame }) => `<key>${xmlEscape(mergedName)}</key>${patchedFrameXml(frame, packed.placements[mergedName].frame)}`).join("\n");
       const region = first.parsed.plist.framesRegion;
       if (!region) throw new Error("The selected PLIST does not have a writable frames dictionary.");
-      const mergedPlist = first.parsed.plist.raw.slice(0, region.openEnd) + `\n${xmlFrames}\n` + first.parsed.plist.raw.slice(region.closeStart);
+      const mergedPlistRaw = first.parsed.plist.raw.slice(0, region.openEnd) + `\n${xmlFrames}\n` + first.parsed.plist.raw.slice(region.closeStart);
       const output = new Map(Object.entries(document.archiveEntries || {}));
       const pngPath = availablePath(output, "__gmdplayer_merged__/atlas.png");
       const plistPath = availablePath(output, "__gmdplayer_merged__/atlas.plist");
       output.set(pngPath, await canvasToPngBytes(packed.canvas));
+      const mergedPlist = patchMergedMetadata(mergedPlistRaw, packed.width, packed.height, pngPath);
       output.set(plistPath, new TextEncoder().encode(mergedPlist));
       const bytes = writeZip(output);
       const filename = `${(document.name || "texture-pack").replace(/[^\w.-]+/g, "_")}-merged.zip`;
