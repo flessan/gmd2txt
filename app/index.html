@@ -260,6 +260,8 @@
             <button type="button" class="btn ghost" id="open-pack">Open pack…</button>
             <button type="button" class="btn ghost" id="open-sprites" hidden>Import PNG / PLIST</button>
             <button type="button" class="btn primary" id="download-pack" hidden>Download updated pack (.zip)</button>
+            <button type="button" class="btn ghost" id="resolution-open" hidden>Build resolutions…</button>
+            <button type="button" class="btn ghost" id="pack-tools-open" hidden>Atlas tools…</button>
           </div>
         </div>
 
@@ -453,6 +455,53 @@
           <svg class="icon"><use href="#i-swap"></use></svg>Convert</button>
       </div>
     </form>
+  </dialog>
+
+
+  <dialog id="resolution-dialog" class="sheet" aria-labelledby="resolution-title">
+    <div class="sheet-inner">
+      <div class="sheet-head">
+        <h2 id="resolution-title">Build Original / HD / UHD files</h2>
+        <button type="button" class="btn icon ghost" data-resolution-close aria-label="Close">×</button>
+      </div>
+      <p class="muted small">Select an existing UHD PNG + XML PLIST sheet. The source is not changed. Original and HD are derived from UHD, so they may differ from official game-supplied packs.</p>
+      <label for="resolution-source">Source atlas</label>
+      <select id="resolution-source"></select>
+      <fieldset id="resolution-targets" class="resolution-targets">
+        <legend>Output versions</legend>
+        <label><input type="checkbox" id="resolution-original" checked> Original <span class="muted small">¼ size</span></label>
+        <label><input type="checkbox" id="resolution-hd" checked> HD <span class="muted small">½ size</span></label>
+        <label><input type="checkbox" id="resolution-uhd" checked> UHD <span class="muted small">keep source pixels</span></label>
+      </fieldset>
+      <p id="resolution-status" class="muted small" role="status" aria-live="polite">Choose a source sheet, then build the ZIP.</p>
+      <div id="resolution-report" class="resolution-report" hidden></div>
+      <div class="sheet-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-resolution-close>Cancel</button>
+        <button type="button" class="btn primary" id="resolution-build">Build ZIP</button>
+        <button type="button" class="btn" id="resolution-download" hidden>Download ZIP</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="pack-tools-dialog" class="sheet" aria-labelledby="pack-tools-title">
+    <div class="sheet-inner">
+      <div class="sheet-head">
+        <h2 id="pack-tools-title">Atlas tools</h2>
+        <button type="button" class="btn icon ghost" data-pack-tools-close aria-label="Close">×</button>
+      </div>
+      <p class="muted small">Use edit history or export a repacked / merged atlas. Imported files stay unchanged.</p>
+      <label for="pack-tools-sheet">Sheet to repack</label>
+      <select id="pack-tools-sheet"></select>
+      <p id="pack-tools-note" class="muted small" role="status"></p>
+      <div class="sheet-actions">
+        <button type="button" class="btn ghost" id="texture-undo">Undo change</button>
+        <button type="button" class="btn ghost" id="texture-redo">Redo change</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="repack-sheet">Repack selected sheet</button>
+        <button type="button" class="btn" id="merge-sheets">Merge PLIST sheets</button>
+        <button type="button" class="btn ghost" data-pack-tools-close>Close</button>
+      </div>
+    </div>
   </dialog>
 
   <section id="player-overlay" class="player-overlay is-parked" role="dialog" aria-modal="true" aria-label="Level preview" tabindex="-1">
