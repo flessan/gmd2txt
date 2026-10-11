@@ -950,3 +950,6 @@ body.has-player { overflow: hidden; }
 .resolution-report-warning { border-left: 3px solid var(--warning, #b98526); padding: 8px 10px; font-size: 12px; background: var(--surface); }
 .resolution-report-warning ul { margin: 6px 0 0; padding-left: 20px; }
 #pack-tools-note { line-height: 1.5; }
+
+.save-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.save-actions .btn { min-height: 32px; }

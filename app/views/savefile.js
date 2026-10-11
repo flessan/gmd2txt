@@ -6,6 +6,8 @@
  * written back. Sensitive fields (player ids) are masked before they are shown.
  */
 import { decodeSaveFile, maskSensitiveFields, serializeSaveXml } from "../../core/saves/save-decoder.js";
+import { importSave } from "../../core/import/handlers/save-importer.js";
+import { createLevel } from "../../core/storage/database.js";
 
 const root = document.getElementById("workspace-root");
 const drop = document.getElementById("save-drop");
@@ -104,6 +106,7 @@ function renderReport(file, decoded) {
     </section>
 
     <div class="save-actions" aria-label="Export save data">
+      ${decoded.saveType === "local-levels" ? '<button type="button" class="btn primary small" data-save-action="import-local-levels">Import embedded levels</button>' : ""}
       <button type="button" class="btn ghost small" data-save-action="download-original">Download original .dat</button>
       <button type="button" class="btn ghost small" data-save-action="download-xml">Download masked XML</button>
       <button type="button" class="btn ghost small" data-save-action="download-json">Download masked JSON</button>
@@ -145,6 +148,21 @@ function renderReport(file, decoded) {
 }
 
 
+function toastMessage(message) {
+  const host = document.getElementById("toasts");
+  if (!host) {
+    const note = document.createElement("p");
+    note.className = "muted small";
+    note.textContent = message;
+    report.prepend(note);
+    return;
+  }
+  const node = document.createElement("div");
+  node.className = "toast";
+  node.textContent = message;
+  host.append(node);
+  setTimeout(() => node.remove(), 4200);
+}
 function downloadSaveExport(blobOrText, filename, mime = "application/octet-stream") {
   const blob = blobOrText instanceof Blob ? blobOrText : new Blob([blobOrText], { type: mime });
   if (!globalThis.URL?.createObjectURL) return false;
@@ -154,7 +172,7 @@ function downloadSaveExport(blobOrText, filename, mime = "application/octet-stre
   setTimeout(() => URL.revokeObjectURL(url), 15000);
   return true;
 }
-report.addEventListener("click", event => {
+report.addEventListener("click", async event => {
   const button = event.target.closest("[data-save-action]");
   if (!button || !activeSaveFile || !activeDecoded) return;
   const action = button.dataset.saveAction;
@@ -175,9 +193,26 @@ report.addEventListener("click", event => {
         tree: maskSensitiveFields(activeDecoded.tree)
       };
       downloadSaveExport(JSON.stringify(payload, null, 2), (activeSaveFile.name || "GeometryDash.dat").replace(/\.dat$/i, "") + "-masked.json", "application/json;charset=utf-8");
+    } else if (action === "import-local-levels") {
+      button.disabled = true;
+      button.textContent = "Extracting…";
+      const snapshot = await importSave([activeSaveFile]);
+      const levels = snapshot.normalized?.localLevels || [];
+      let added = 0, duplicates = 0;
+      for (const item of levels) {
+        const result = await createLevel(item.document);
+        if (result?.duplicate) duplicates++;
+        else added++;
+      }
+      const errors = snapshot.normalized?.localLevelErrors?.length || 0;
+      toastMessage(added + " local level(s) added" + (duplicates ? " · " + duplicates + " duplicate(s)" : "") + (errors ? " · " + errors + " record(s) skipped" : "") + ".");
+      button.disabled = false;
+      button.textContent = "Import embedded levels";
     }
   } catch (error) {
-    showError(error?.message || "This save export could not be prepared.");
+    const extractButton = report.querySelector('[data-save-action="import-local-levels"]');
+    if (extractButton) { extractButton.disabled = false; extractButton.textContent = "Import embedded levels"; }
+    toastMessage(error?.message || "This save export could not be prepared.");
   }
 });
 async function openSaveFile(file) {
