@@ -23,6 +23,10 @@ const SHELL_ASSETS = [
   "./play/assets/scripts/libs/pako.min.js",
   "./play/assets/scripts/game/allLevels.js",
   "./play/assets/scripts/core/gmdplayer-bridge.js",
+  "./play/assets/scripts/utils/pixel-sky.js",
+  "./play/assets/scripts/core/pregame.js",
+  "./play/assets/music/PixelSky.wav",
+  "./play/assets/music/menuLoop.mp3",
   "./play/assets/levels/1.txt",
   "./play/assets/levels/2.txt",
   "./play/assets/levels/3.txt",
@@ -52,7 +56,7 @@ const CORE_ROOT = new URL("./core/", ROOT_SCOPE);
 const isAppAsset = url => url.origin === ROOT_SCOPE.origin && (url.pathname.startsWith(APP_ROOT.pathname) || url.pathname.startsWith(CORE_ROOT.pathname));
 const isAppNavigation = url => url.origin === ROOT_SCOPE.origin && url.pathname.startsWith(APP_ROOT.pathname);
 const resolveAsset = path => new URL(path, APP_ROOT).href;
-const CACHEABLE = /\.(?:js|mjs|css|png|jpe?g|webp|svg|ico|woff2?|ttf|otf|webmanifest|json|txt)$/i;
+const CACHEABLE = /\.(?:js|mjs|css|png|jpe?g|webp|svg|ico|woff2?|ttf|otf|webmanifest|json|txt|mp3|wav|ogg)$/i;
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {

@@ -1,14 +1,182 @@
 * {
-  margin: 0;
-  padding: 0;
+    box-sizing: border-box;
 }
 
+html,
 body {
-  overflow: hidden;
-  background: #000;
+    margin: 0;
+    padding: 0;
 }
 
-canvas {
-  display: block;
-  margin: 0 auto;
+/* Clear-sky fallback behind the animated pixel backdrop. */
+body {
+    background: linear-gradient(#62a8ee 0%, #89c2f4 52%, #bfe4ff 72%, #d8efff 78%, #7cb653 78.2%, #5f9b3e 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #f4f8ff;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Animated 8-bit sky (clear sky, drifting clouds, sun) — visible around the game. */
+#pregame-sky,
+.sky-backdrop {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    z-index: 0;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+/* The Phaser canvas (appended to body) sits above the sky backdrop. */
+body > canvas:not(.sky-backdrop):not(#pregame-sky) {
+    position: relative;
+    z-index: 1;
+    display: block;
+    margin: 0 auto;
+    image-rendering: pixelated;
+}
+
+/* ---------- Pre-game start screen ---------- */
+
+.pregame {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 24, 48, 0.34);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.pregame[hidden] {
+    display: none;
+}
+
+.pregame-panel {
+    width: min(470px, 100%);
+    padding: 24px 22px 18px;
+    text-align: center;
+    background: rgba(13, 22, 35, 0.93);
+    border: 3px solid #0a1220;
+    border-radius: 6px;
+    box-shadow:
+        0 0 0 3px rgba(255, 255, 255, 0.16),
+        0 22px 48px rgba(0, 0, 0, 0.45);
+}
+
+.pregame-title {
+    margin: 0 0 8px;
+    font-size: clamp(22px, 5.2vw, 30px);
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
+}
+
+.pregame-sub {
+    margin: 0 0 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #c3d3e8;
+}
+
+.pregame-choices {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pregame-remember {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    color: #aebdd2;
+    cursor: pointer;
+    user-select: none;
+}
+
+.pregame-remember input {
+    width: 15px;
+    height: 15px;
+    accent-color: #58a6ff;
+    cursor: pointer;
+}
+
+.pregame-note {
+    margin: 14px 0 0;
+    font-size: 10.5px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #7e8ca2;
+}
+
+/* Chunky 8-bit bevel buttons (native Minecraft-flavored look). */
+.pixel-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    padding: 13px 18px 15px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: #6b7280;
+    border: 0;
+    border-radius: 3px;
+    box-shadow:
+        inset 0 3px 0 rgba(255, 255, 255, 0.38),
+        inset 0 -5px 0 rgba(0, 0, 0, 0.36),
+        0 0 0 3px #0a1220,
+        0 9px 0 rgba(0, 0, 0, 0.32);
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+    transition: transform 90ms ease, filter 120ms ease, box-shadow 90ms ease;
+}
+
+.pixel-btn:hover {
+    filter: brightness(1.12);
+}
+
+.pixel-btn:active {
+    transform: translateY(4px);
+    filter: brightness(0.96);
+    box-shadow:
+        inset 0 3px 0 rgba(255, 255, 255, 0.28),
+        inset 0 -3px 0 rgba(0, 0, 0, 0.36),
+        0 0 0 3px #0a1220,
+        0 4px 0 rgba(0, 0, 0, 0.32);
+}
+
+.pixel-btn:focus-visible {
+    outline: 3px solid #9fd0ff;
+    outline-offset: 4px;
+}
+
+.pixel-btn-primary {
+    background: #4f9e3f;
+    box-shadow:
+        inset 0 3px 0 rgba(255, 255, 255, 0.42),
+        inset 0 -5px 0 rgba(0, 0, 0, 0.34),
+        0 0 0 3px #0a1220,
+        0 9px 0 rgba(0, 0, 0, 0.32);
+}
+
+.pixel-btn-primary:hover {
+    filter: brightness(1.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pixel-btn {
+        transition: none;
+    }
 }

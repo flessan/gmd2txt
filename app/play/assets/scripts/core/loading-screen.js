@@ -329,6 +329,7 @@ class BootScene extends Phaser.Scene {
       }
 
       this.load.audio("menu_music", "assets/music/menuLoop.mp3");
+      this.load.audio("pixel_sky", "assets/music/PixelSky.wav");
       this.load.audio("StayInsideMe", "assets/music/StayInsideMe.mp3");
 
       /*for (const lvlarray of window.allLevels) {

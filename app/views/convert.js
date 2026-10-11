@@ -52,6 +52,11 @@ const dom = {
   playerTitle: document.querySelector("#player-title"),
   playerStatus: document.querySelector("#player-status"),
   playerClose: document.querySelector("#player-close"),
+  playerMusic: document.querySelector("#player-music"),
+  startDialog: document.querySelector("#start-dialog"),
+  startTitle: document.querySelector("#start-title"),
+  startRemember: document.querySelector("#start-remember"),
+  playSky: document.querySelector("#play-sky"),
   toasts: document.querySelector("#toasts")
 };
 
@@ -813,12 +818,97 @@ function takeWarmRuntime(entry) {
   return { frame, staged };
 }
 
+/* ------------------------------------------------------------------ *
+ * Pre-game start screen (music or silence) + play-room pixel sky
+ * ------------------------------------------------------------------ */
+
+const START_CHOICE_KEY = "gmd-play-music"; // shared with the runtime ("on" / "off")
+let startChoicePending = null;
+let startChoiceResolve = null;
+let playSkyMounted = false;
+
+function rememberedStartChoice() {
+  try {
+    const value = localStorage.getItem(START_CHOICE_KEY);
+    if (value === "on") return "music";
+    if (value === "off") return "silent";
+  } catch (_) {}
+  return null;
+}
+
+function rememberStartChoice(choice) {
+  if (!dom.startRemember?.checked) return;
+  try {
+    localStorage.setItem(START_CHOICE_KEY, choice === "music" ? "on" : "off");
+  } catch (_) {}
+}
+
+function settleStartChoice(choice) {
+  const resolve = startChoiceResolve;
+  if (!resolve) return;
+  startChoiceResolve = null;
+  startChoicePending = null;
+  if (choice) rememberStartChoice(choice);
+  closeDialog(dom.startDialog);
+  resolve(choice);
+}
+
+/**
+ * Asks "music or silence?" before a level boots. Resolves "music" | "silent",
+ * or null when the player dismisses the screen (nothing starts then). Skipped
+ * entirely once a choice has been remembered (storage key `gmd-play-music`).
+ */
+function requestStartChoice(levelName) {
+  const remembered = rememberedStartChoice();
+  if (remembered) return Promise.resolve(remembered);
+  if (startChoicePending) return startChoicePending;
+  const dialog = dom.startDialog;
+  if (!dialog) return Promise.resolve("music");
+  if (dom.startTitle) {
+    dom.startTitle.textContent = levelName ? `Ready to play — ${levelName}` : "Ready to play";
+  }
+  if (dom.startRemember) dom.startRemember.checked = false;
+  startChoicePending = new Promise(resolve => {
+    startChoiceResolve = resolve;
+    openDialog(dialog);
+  });
+  return startChoicePending;
+}
+
+/** Paints the animated 8-bit sky behind the play room (clouds, sun, horizon). */
+function mountPlaySky() {
+  if (playSkyMounted || !dom.playSky || !window.GmdPixelSky) return;
+  playSkyMounted = true;
+  window.GmdPixelSky.mount(dom.playSky, { clouds: 6, horizon: 0.72 });
+}
+
+function setPlayerMusicState(enabled) {
+  const button = dom.playerMusic;
+  if (!button) return;
+  const on = enabled !== false;
+  button.classList.toggle("is-on", on);
+  button.classList.toggle("is-off", !on);
+  button.setAttribute("aria-pressed", String(on));
+  const label = on ? "Music on — click to mute" : "Music off — click to unmute";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  const use = button.querySelector("use");
+  if (use) use.setAttribute("href", on ? "#i-note" : "#i-note-off");
+}
+
 async function playEntry(entry) {
   if (!entry?.document || !entry?.conversion) {
     toast("This level is still being saved — try the preview again in a moment.", "error");
     return;
   }
   const conversion = entry.conversion;
+
+  // Pre-game start screen: music or silence, asked before anything boots.
+  // Dismissing the screen starts nothing.
+  const startChoice = await requestStartChoice(conversion.displayName || "this level");
+  if (!startChoice) return;
+  const musicEnabled = startChoice === "music";
+
   dom.playerTitle.textContent = conversion.displayName;
   dom.playerStatus.textContent = "";
   dom.playerLoading.hidden = false;
@@ -857,6 +947,7 @@ async function playEntry(entry) {
       keepAlive: true,
       localAudio: null,
       allowUnconfirmedStart: true,
+      musicEnabled,
       // The runtime paints its own loading screen: show it instead of our spinner.
       onMounted: () => setTimeout(() => {
         if (!playerIsOpen()) return;
@@ -865,6 +956,7 @@ async function playEntry(entry) {
       }, 450)
     });
     dom.playerLoading.hidden = true;
+    setPlayerMusicState(musicEnabled);
     dom.playerStatus.textContent = warm.staged
       ? "Playing — Space or click to jump, Esc or Close to leave."
       : "Loaded — press Space or click to play, Esc or Close to leave.";
@@ -1054,6 +1146,23 @@ function bindEvents() {
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && dom.pasteDialog.open) closeDialog(dom.pasteDialog);
   });
+
+  // Pre-game start screen: the two big choices, plus any dismiss control.
+  // Escape closes <dialog> on its own; its "close" event settles the same way.
+  document.querySelector("#start-with-music")?.addEventListener("click", () => settleStartChoice("music"));
+  document.querySelector("#start-without-music")?.addEventListener("click", () => settleStartChoice("silent"));
+  document.querySelectorAll("#start-dialog [data-start-close]").forEach(button => {
+    button.addEventListener("click", () => settleStartChoice(null));
+  });
+  dom.startDialog?.addEventListener("close", () => settleStartChoice(null));
+
+  // Player-bar music toggle: flips the running game's soundtrack (this session
+  // only — the remembered choice is the one made on the start screen).
+  dom.playerMusic?.addEventListener("click", () => {
+    const nowOn = !dom.playerMusic.classList.contains("is-on");
+    setPlayerMusicState(nowOn);
+    state.player?.setMusic(nowOn);
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -1088,6 +1197,7 @@ export const converterApi = {
   playLevel,
   refreshHistory,
   warmUp: () => scheduleWarmRuntime(0),
+  mountPlaySky,
   isPlaying: playerIsOpen,
   toast
 };

@@ -294,6 +294,8 @@ function buildLevels() {
 
 function warmPlayRoom() {
   buildLevels();
+  // Animated 8-bit sky (clear sky, clouds, sun) behind the level picker.
+  converterApi.mountPlaySky();
   // Start the runtime now, so pressing a level does not wait for the engine.
   converterApi.warmUp();
 }

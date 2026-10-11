@@ -1092,6 +1092,74 @@ dialog::backdrop {
 .player-loading p { margin: 0; }
 .player-loading small { color: var(--muted); }
 
+/* Player-bar music toggle (pre-game choice, flipable at any time). */
+.player-music.is-on { color: var(--primary); }
+.player-music.is-off { color: var(--muted); opacity: .8; }
+.player-music.is-on .icon { transform: rotate(-6deg); transition: transform var(--dur-short, 140ms) var(--ease-emphasized); }
+
+/* Pre-game start screen: music or silence, in the M3 sheet language. */
+.start-sheet { width: min(460px, calc(100vw - 32px)); }
+.start-choices { display: grid; gap: 12px; }
+.start-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--on-surface);
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-lg);
+  box-shadow: var(--elev-1);
+  transition: background var(--dur-short, 140ms) var(--ease-emphasized), transform var(--dur-short, 140ms) var(--ease-emphasized), border-color var(--dur-short, 140ms) var(--ease-emphasized);
+}
+.start-choice .icon { width: 30px; height: 30px; flex: 0 0 auto; }
+.start-choice-text { display: grid; gap: 2px; }
+.start-choice-text strong { font-size: 1.02rem; letter-spacing: .1px; }
+.start-choice-text small { color: var(--muted); }
+.start-choice:hover { transform: translateY(-1px); border-color: var(--outline); }
+.start-choice:active { transform: none; }
+.start-choice:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.start-choice-music:hover { background: var(--secondary-container, var(--surface-container-high)); }
+.start-choice-music .icon { color: var(--primary); }
+.start-choice-silent:hover { background: var(--surface-container-high); }
+.start-choice-silent .icon { color: var(--muted); }
+.start-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .92rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.start-remember input { width: 17px; height: 17px; accent-color: var(--primary); cursor: pointer; }
+
+/* Play room: the animated 8-bit pixel sky lives behind the level picker. */
+#view-play { position: relative; isolation: isolate; }
+.play-sky-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  border-radius: var(--shape-xl);
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+#view-play .view-head {
+  padding: 14px 16px;
+  border-radius: var(--shape-xl);
+  background: color-mix(in srgb, var(--surface-container) 86%, transparent);
+  border: 1px solid var(--outline-variant);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#view-play .level { position: relative; }
+
 /* ============================== room: home =============================== */
 
 /* Intake callout */

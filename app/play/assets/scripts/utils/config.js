@@ -74,6 +74,15 @@ window.gmdplayerStandalone = !window.gmdplayerEmbedded;
 // background and will send a level shortly, so it should wait instead of
 // starting a bundled level on its own.
 window.gmdplayerHoldForLevel = urlParams.get("hold") === "1";
+// Music before (or without) a pre-game choice: ?music=0|1 wins for this visit,
+// then a remembered choice (localStorage `gmd-play-music`), otherwise music on.
+const musicParam = urlParams.get("music");
+const rememberedMusic = (() => {
+  try { return localStorage.getItem("gmd-play-music"); } catch (_) { return null; }
+})();
+window.gmdMusicEnabled = musicParam === "0" ? false
+  : musicParam === "1" ? true
+  : rememberedMusic !== "off";
 
 window.currentlevel = [
 	"stereo_madness", // internal level name

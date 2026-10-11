@@ -73,6 +73,15 @@
     if (scene?._state?.upKeyDown) scene._releaseButton?.();
   });
 
+  // A runtime that booted without a user gesture keeps its audio context
+  // suspended (autoplay policy), which makes the whole game silent. The first
+  // click or key in the frame — or an incoming bridge message — unlocks it.
+  const unlockAudio = () => {
+    try { window.gmdRuntimeGame?.sound?.context?.resume?.(); } catch (_) {}
+  };
+  window.addEventListener("pointerdown", unlockAudio, { passive: true });
+  window.addEventListener("keydown", unlockAudio);
+
   window.addEventListener("message", async event => {
     // A runtime opened on its own (window.parent === window) would otherwise
     // receive its own outgoing messages and wait forever for a level hand-off.
@@ -82,6 +91,7 @@
     window._gmdplayerHandoffRequested = true;
     try {
       const { game, scene } = await waitForScene();
+      unlockAudio();
       if (message.type === "load-level") {
         const doc = message.document;
         if (!doc?.content?.raw || !doc.id) throw new Error("The level document is incomplete.");
@@ -131,6 +141,19 @@
       } else if (message.type === "play") {
         if (scene._paused) scene._resumeGame();
         else if (scene._menuActive) scene._startGame();
+      } else if (message.type === "music") {
+        // The embedding app asked the pre-game question ("music or silence").
+        window.gmdMusicEnabled = message.enabled !== false;
+        try {
+          if (game?.sound) game.sound.mute = false;
+        } catch (_) {}
+        if (window.gmdMusicEnabled) {
+          try {
+            if (scene._audio && !scene._audio.musicPlaying) scene._audio.startMusic();
+          } catch (_) {}
+        } else {
+          try { scene._audio?.stopMusic?.(); } catch (_) {}
+        }
       } else if (message.type === "pause") {
         if (scene._paused) scene._resumeGame(); else scene._pauseGame();
       } else if (message.type === "restart") {

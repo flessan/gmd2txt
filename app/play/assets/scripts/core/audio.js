@@ -136,7 +136,11 @@ class AudioManager {
       this._pendingMusicLoadOffset = 0;
       this._pendingMusicFadeDuration = null;
 
-      if (!shouldPlay || !this._scene.cache.audio.exists(songKey)) return;
+      if (!shouldPlay) return;
+      if (!this._scene.cache.audio.exists(songKey)) {
+        this._startPixelFallback();
+        return;
+      }
 
       if (nextFadeDuration !== null && nextFadeDuration !== undefined) {
         this.fadeInMusic(nextFadeDuration);
@@ -153,6 +157,7 @@ class AudioManager {
         this._pendingMusicFadeDuration = null;
       }
       console.warn("Failed to load official song audio", songKey, audioPath);
+      this._startPixelFallback();
     };
 
     try {
@@ -244,12 +249,24 @@ class AudioManager {
           this._pendingOnlineSongFadeDuration = null;
         }
         console.warn("Failed to load online song audio", songKey, err);
+        this._startPixelFallback();
       }
     })();
 
     return true;
   }
   startMusic(StartPosOffset = 0) {
+    if (window.gmdMusicEnabled === false) {
+      this.stopMusic();
+      return;
+    }
+    // A runtime that booted without a user gesture (pre-warmed preview, autoplay
+    // policy) keeps its context suspended: asking it to resume here is what makes
+    // the soundtrack audible at all.
+    try {
+      const ctx = this._scene?.sound?.context;
+      if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+    } catch (_) {}
     let savedPosition = 0;
     let savedKey = null;
     if (this._music && this._music.isPlaying) {
@@ -292,7 +309,7 @@ class AudioManager {
     }
     const _songKey = window.currentlevel?.[0];
     if (!_songKey) {
-      this._setupAnalyser();
+      this._startPixelFallback();
       return;
     }
     if (!this._scene.cache.audio.exists(_songKey)) {
@@ -300,7 +317,7 @@ class AudioManager {
         this._setupAnalyser();
         return;
       }
-      this._setupAnalyser();
+      this._startPixelFallback();
       return;
     }
     this._music = this._scene.sound.add(_songKey, {
@@ -384,12 +401,44 @@ class AudioManager {
 
     this._music = musicObj;
   }
+  /**
+   * The bundled 8-bit theme: always available, always local. It covers levels
+   * whose song cannot be found or downloaded, so the game is never silent.
+   */
+  _startPixelFallback() {
+    this._setupAnalyser();
+    if (window.gmdMusicEnabled === false) return;
+    if (!this._scene?.cache?.audio?.exists("pixel_sky")) return;
+    if (this._music && this._music.isPlaying) return;
+    try {
+      const ctx = this._scene?.sound?.context;
+      if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+    } catch (_) {}
+    this._music = this._scene.sound.add("pixel_sky", {
+      loop: true,
+      volume: this._effectiveVolume() * 0.85
+    });
+    this._music.play();
+    this._musicPlaying = true;
+  }
   startMenuMusic() {
+    if (window.gmdMusicEnabled === false) {
+      this.stopMusic();
+      return;
+    }
+    try {
+      const ctx = this._scene?.sound?.context;
+      if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+    } catch (_) {}
     if (this._music) {
       this._music.stop();
       this._music.destroy();
     }
-    this._music = this._scene.sound.add("menu_music", {
+    const menuKey = this._scene.cache.audio.exists("menu_music")
+      ? "menu_music"
+      : (this._scene.cache.audio.exists("pixel_sky") ? "pixel_sky" : null);
+    if (!menuKey) return;
+    this._music = this._scene.sound.add(menuKey, {
       loop: true,
       volume: this._effectiveVolume()
     });

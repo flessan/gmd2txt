@@ -97,6 +97,8 @@
         })();
     </script>
     <script defer src="assets/scripts/utils/config.js"></script>
+    <script defer src="assets/scripts/utils/pixel-sky.js"></script>
+    <script defer src="assets/scripts/core/pregame.js"></script>
     <script defer src="assets/scripts/core/triggers.js"></script>
     <script defer src="assets/scripts/core/level.js?latest"></script>
     <script defer src="assets/scripts/core/player.js?latehkjthykhst"></script>
@@ -118,6 +120,21 @@
 </head>
 
 <body>
+    <canvas id="pregame-sky" class="sky-backdrop" aria-hidden="true"></canvas>
+
+    <div id="pregame" class="pregame" hidden>
+        <div class="pregame-panel">
+            <h1 class="pregame-title">Ready to play</h1>
+            <p class="pregame-sub">The level starts right away — pick how you want to hear it.</p>
+            <div class="pregame-choices">
+                <button type="button" class="pixel-btn pixel-btn-primary" id="pregame-music">Play with music</button>
+                <button type="button" class="pixel-btn" id="pregame-silent">Play without music</button>
+            </div>
+            <label class="pregame-remember"><input type="checkbox" id="pregame-remember"> Remember my choice and skip this screen</label>
+            <p class="pregame-note">Bundled soundtrack · 8-bit pixel-sky theme · nothing is uploaded</p>
+        </div>
+    </div>
+
 </body>
 
 </html>

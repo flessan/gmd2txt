@@ -118,6 +118,12 @@ export class PlayerAdapter {
       win.isEditor = false;
       win.levelID = null;
 
+      // The pre-game music choice travels with the level: send it before the
+      // first play so a run started in silence never makes a sound.
+      if (options.musicEnabled != null) {
+        this._send({ type: "music", enabled: options.musicEnabled !== false });
+      }
+
       // A pre-warmed runtime may already be holding this exact level, paused and
       // muted off-screen: resuming it is what makes "Play preview" instant.
       const staged = options.staged === true &&
@@ -335,6 +341,11 @@ export class PlayerAdapter {
   /** Pauses whatever is on screen in the runtime (used before parking it). */
   park() {
     this._send({ type: "park" });
+  }
+
+  /** Pre-game choice: include the soundtrack or play in silence. */
+  setMusic(enabled) {
+    this._send({ type: "music", enabled: enabled !== false });
   }
 
   stop(notify = true) {

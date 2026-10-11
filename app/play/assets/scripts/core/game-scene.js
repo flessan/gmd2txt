@@ -4252,13 +4252,22 @@ this._menuUpdateLogBtn = this.add.image(screenWidth - 30 - 50, 33, "GJ_WebSheet"
       return;
     }
 
-    // 3. Otherwise start a bundled level immediately.
-    if (startBundledLevel()) return;
-
-    showWaiting(
-      "Player could not start",
-      "No level data was found. Open gmd2txt and use “Play preview”, or add ?level=level_1 to the URL."
-    );
+    // 3. Otherwise start a bundled level — waiting for the pre-game start screen
+    //    first when one is asking whether to include music (standalone player).
+    const beginBundledLevel = () => {
+      if (startBundledLevel()) return;
+      showWaiting(
+        "Player could not start",
+        "No level data was found. Open gmd2txt and use “Play preview”, or add ?level=level_1 to the URL."
+      );
+    };
+    const startChoice = window.gmdplayerAwaitStartChoice;
+    if (startChoice && typeof startChoice.then === "function") {
+      this._showRuntimeStatus("Ready to play", "Pick your music option to begin.");
+      startChoice.then(beginBundledLevel, beginBundledLevel);
+      return;
+    }
+    beginBundledLevel();
   }
 
   _parseLevelColors(levelId) {
