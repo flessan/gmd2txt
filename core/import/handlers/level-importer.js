@@ -29,7 +29,8 @@ function extractGmdPayload(text) {
   return { levelString: xmlUnescape(levelString.trim()), values };
 }
 
-async function sha256(value) {
+/** Content hash shared with the converter so the same level dedupes across both tools. */
+export async function sha256Text(value) {
   const bytes = new TextEncoder().encode(value);
   if (globalThis.crypto?.subtle) {
     const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -73,7 +74,7 @@ export async function importLevel(file) {
       metadata.song = { type: "official", id: officialSongIndex, name: `Official song ${officialSongIndex + 1}`, artist: "", fileId: null };
     }
   }
-  const hash = await sha256(playableLevelString.trim());
+  const hash = await sha256Text(playableLevelString.trim());
   const sourceLevelId = metadata.levelId == null ? "local" : String(metadata.levelId);
   const id = `level_${sourceLevelId}_${hash}`;
   return createLevelDocument({

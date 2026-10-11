@@ -7,7 +7,14 @@ export async function decodePng(fileOrBytes, options = {}) {
   if (signature.length !== 8 || signature.some((byte, i) => byte !== [137, 80, 78, 71, 13, 10, 26, 10][i])) throw new Error("File is not a PNG image.");
   let bitmap;
   if(typeof globalThis.createImageBitmap==="function"){
-    try { bitmap = await globalThis.createImageBitmap(blob); } catch (_) { throw new Error("PNG image data is malformed or unsupported."); }
+    // Sprite work is pixel work: ask the decoder not to premultiply alpha or
+    // convert colour spaces, so a pixel read back is the pixel that was stored.
+    const precise = { premultiplyAlpha: "none", colorSpaceConversion: "none", alpha: true };
+    try { bitmap = await globalThis.createImageBitmap(blob, precise); }
+    catch (_) {
+      try { bitmap = await globalThis.createImageBitmap(blob); }
+      catch (_) { throw new Error("PNG image data is malformed or unsupported."); }
+    }
   }else if(typeof globalThis.Image==="function"&&globalThis.URL?.createObjectURL){
     const url=URL.createObjectURL(blob);bitmap=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error("PNG image data is malformed or unsupported."));image.src=url;}).finally(()=>URL.revokeObjectURL(url));
   }else throw new Error("PNG decoding is unavailable in this browser.");
@@ -38,12 +45,23 @@ function checkedRect(frame, atlasWidth, atlasHeight) {
   return { x, y, width, height };
 }
 
+export function isPngBytes(bytes) {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  return view.length >= 24 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => view[index] === value);
+}
+
+/** Width/height straight out of the IHDR, without decoding the image. */
+export async function pngDimensions(source) { return pngHeaderDimensions(source); }
+
 export async function extractSprite(atlas, frame, options = {}) {
   const isBitmap = typeof ImageBitmap === "function" && atlas instanceof ImageBitmap;
   const logical = dimensions(frame);
   const scale = options.maxDimension ? Math.min(1, options.maxDimension / Math.max(logical.width, logical.height)) : 1;
   const outputWidth = Math.max(1, Math.round(logical.width * scale)), outputHeight = Math.max(1, Math.round(logical.height * scale));
   const canvas = makeCanvas(outputWidth, outputHeight), ctx = canvas.getContext("2d", { willReadFrequently: false });
+  // A crop that is not resized must come out pixel for pixel; only an explicit
+  // thumbnail (maxDimension) is allowed to resample, and then it is smoothed.
+  ctx.imageSmoothingEnabled = options.smoothing ?? (scale !== 1);
   if (!isBitmap && !atlas?.getContext && typeof createImageBitmap === "function") {
     const blob = atlas instanceof Blob ? atlas : new Blob([atlas], { type: "image/png" });
     const size = await pngHeaderDimensions(blob), rect = checkedRect(frame, size.width, size.height);
@@ -79,12 +97,47 @@ export async function extractSprite(atlas, frame, options = {}) {
   return canvas;
 }
 
+/**
+ * Where a replacement image lands inside a sprite slot, for each fitting mode.
+ * Pure maths on purpose: this is the rule people rely on when they drop a big
+ * picture onto a small sprite, so it is unit tested in Node.
+ *
+ *   contain — keep the aspect ratio, whole image visible, transparent margins
+ *   cover   — keep the aspect ratio, fill the slot, crop the overflow
+ *   stretch — fill the slot exactly, aspect ratio may change ("fit" in the UI)
+ *   exact   — the replacement already has the slot's size
+ */
+export function fitRect(source, target, mode = "contain") {
+  const width = Math.max(1, Math.round(Number(source?.width) || 0));
+  const height = Math.max(1, Math.round(Number(source?.height) || 0));
+  const slotWidth = Math.max(1, Math.round(Number(target?.width) || 0));
+  const slotHeight = Math.max(1, Math.round(Number(target?.height) || 0));
+  if (mode === "stretch" || mode === "fit") return { x: 0, y: 0, width: slotWidth, height: slotHeight };
+  if (mode === "contain") {
+    const scale = Math.min(slotWidth / width, slotHeight / height);
+    const drawWidth = Math.max(1, Math.round(width * scale));
+    const drawHeight = Math.max(1, Math.round(height * scale));
+    return { x: Math.round((slotWidth - drawWidth) / 2), y: Math.round((slotHeight - drawHeight) / 2), width: drawWidth, height: drawHeight };
+  }
+  if (mode === "cover") {
+    const scale = Math.max(slotWidth / width, slotHeight / height);
+    const drawWidth = Math.max(1, Math.round(width * scale));
+    const drawHeight = Math.max(1, Math.round(height * scale));
+    return { x: Math.round((slotWidth - drawWidth) / 2), y: Math.round((slotHeight - drawHeight) / 2), width: drawWidth, height: drawHeight };
+  }
+  throw new Error("Choose how the image should fit the sprite: contain, cover, stretch or exact.");
+}
+
+export const SPRITE_FIT_MODES = ["contain", "cover", "stretch", "exact"];
+
 async function toCanvas(source) {
   if (source?.getContext) return source;
   return decodePng(source);
 }
 export async function createSpriteReplacement(atlasSource, frame, replacementSource, mode = "exact") {
-  if (!["exact", "fit"].includes(mode)) throw new Error("Choose Exact dimensions or Fit to slot.");
+  if (!["exact", "fit", "contain", "cover", "stretch"].includes(mode)) {
+    throw new Error("Choose how the image should fit the sprite: contain, cover, stretch or exact.");
+  }
   const atlasSize = atlasSource?.getContext || (typeof ImageBitmap === "function" && atlasSource instanceof ImageBitmap)
     ? { width: atlasSource.width, height: atlasSource.height }
     : await pngHeaderDimensions(atlasSource);
@@ -95,25 +148,55 @@ export async function createSpriteReplacement(atlasSource, frame, replacementSou
     ? { width: replacementSource.width, height: replacementSource.height }
     : await pngHeaderDimensions(replacementSource);
   if (mode === "exact" && (replacementSize.width !== logical.width || replacementSize.height !== logical.height)) {
-    throw new Error(`Exact replacement requires ${logical.width}×${logical.height}px. Choose Fit to slot to resize explicitly.`);
+    throw new Error(`An exact replacement must already be ${logical.width}×${logical.height}px — choose a fitting mode to resize automatically.`);
   }
-  let replacement, closeReplacement = false;
-  if (!sourceHasDimensions && mode === "fit" && typeof createImageBitmap === "function") {
-    const blob = replacementSource instanceof Blob ? replacementSource : new Blob([replacementSource], { type: "image/png" });
-    try {
-      replacement = await createImageBitmap(blob, { resizeWidth: logical.width, resizeHeight: logical.height, resizeQuality: "high" });
-      closeReplacement = true;
-    } catch (_) { replacement = await decodePng(blob); closeReplacement = true; }
-  } else { replacement = await toCanvas(replacementSource); closeReplacement = !sourceHasDimensions; }
+  const replacement = await toCanvas(replacementSource), closeReplacement = !sourceHasDimensions;
   if (mode === "exact" && (replacement.width !== replacementSize.width || replacement.height !== replacementSize.height)) {
     if (closeReplacement) replacement.close?.();
     throw new Error("Replacement PNG dimensions do not match its header.");
   }
+  // The picture is scaled for the person, never silently distorted: "contain"
+  // keeps the whole image, "cover" fills the slot, "stretch" is the explicit
+  // "make it exactly this size" option.
+  const place = fitRect({ width: replacement.width, height: replacement.height }, logical, mode);
   const fitted = makeCanvas(logical.width, logical.height), fctx = fitted.getContext("2d");
   fctx.imageSmoothingEnabled = mode !== "exact";
-  fctx.drawImage(replacement, 0, 0, logical.width, logical.height);
+  fctx.imageSmoothingQuality = "high";
+  // "cover" crops from the centre by drawing an oversized image into the slot.
+  if (mode === "cover") {
+    fctx.drawImage(replacement, place.x, place.y, place.width, place.height);
+  } else {
+    fctx.clearRect(0, 0, logical.width, logical.height);
+    fctx.drawImage(replacement, 0, 0, replacement.width, replacement.height, place.x, place.y, place.width, place.height);
+  }
   if (closeReplacement) replacement.close?.();
   return fitted;
+}
+
+/**
+ * The replacement as the bytes that get stored in the pack.
+ *
+ * `exact` is a promise that the picture is already the sprite's size, so the
+ * file is kept byte for byte — re-encoding it through a canvas would be a
+ * silently different image. Everything else is fitted and re-encoded.
+ */
+export async function createSpriteReplacementBytes(atlasSource, frame, replacementSource, mode = "exact") {
+  const sourceIsBytes = replacementSource instanceof Uint8Array || replacementSource instanceof ArrayBuffer;
+  if (mode === "exact" && sourceIsBytes && isPngBytes(replacementSource)) {
+    const bytes = replacementSource instanceof Uint8Array ? replacementSource : new Uint8Array(replacementSource);
+    const size = await pngHeaderDimensions(bytes);
+    const logical = dimensions(frame);
+    if (size.width !== logical.width || size.height !== logical.height) {
+      throw new Error(`An exact replacement must already be ${logical.width}×${logical.height}px — choose a fitting mode to resize automatically.`);
+    }
+    return { bytes, width: size.width, height: size.height, exact: true };
+  }
+  const canvas = await createSpriteReplacement(atlasSource, frame, replacementSource, mode);
+  try {
+    return { bytes: await canvasToPngBytes(canvas), width: canvas.width, height: canvas.height, exact: false };
+  } finally {
+    canvas.close?.();
+  }
 }
 
 export async function composeModifiedAtlas(atlasSource, sheet, modifications = {}) {

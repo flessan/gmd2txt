@@ -60,7 +60,10 @@ const phaserConfig = {
   },
   scene: [BootScene, GameScene]
 };
-new Phaser.Game(phaserConfig);
+// Publish the running game so embedders (the gmd2txt app, the runtime bridge)
+// can reach the scene. Phaser 3 has no global game registry, so this is the
+// only reliable handle.
+window.gmdRuntimeGame = new Phaser.Game(phaserConfig);
 
 window.clearGameCache = () => {
   if (window.gameCache) {

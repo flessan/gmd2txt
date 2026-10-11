@@ -59,9 +59,14 @@ export function decodeLevelPayload(raw, filename = "") {
   throw new Error(`Could not decode ${filename || "this file"} as a Geometry Dash level string.`);
 }
 
+/**
+ * Geometry Dash level-header keys, as read by the bundled runtime and by common
+ * tools: k1 = level id, k2 = name, k3 = description, k5 = creator, k8 = official
+ * song index (0-based), k45 = custom song id.
+ */
 export function metadataFromParsed(parsed) {
   const s = parsed.settings || {};
-  const name = s.k1 || s.name || "Untitled level";
+  const name = s.k2 || s.name || "Untitled level";
   let description = s.k3 || s.description || "";
   try {
     if (description && /^[A-Za-z0-9+/_-]+={0,2}$/.test(description)) {
@@ -70,15 +75,22 @@ export function metadataFromParsed(parsed) {
       description = new TextDecoder().decode(Uint8Array.from(binary, c => c.charCodeAt(0)));
     }
   } catch (_) { /* Preserve undecodable metadata literally. */ }
-  const levelIdValue = s.k2 || s.kID || "";
+  const levelIdValue = s.k1 || s.kID || "";
   const numericLevelId = Number.parseInt(levelIdValue, 10);
-  const songId = Number.parseInt(s.k8 || s.k10 || "0", 10) || 0;
+  const customSongId = Number.parseInt(s.k45 || "0", 10) || 0;
+  const officialSongIndex = Number.parseInt(s.k8 ?? "", 10);
+  const hasOfficialSong = Number.isFinite(officialSongIndex) && officialSongIndex >= 0;
+  const song = customSongId > 0
+    ? { type: "custom", id: customSongId, name: `Custom song ${customSongId}`, artist: "", fileId: String(customSongId) }
+    : hasOfficialSong
+      ? { type: "official", id: officialSongIndex, name: `Official song ${officialSongIndex + 1}`, artist: "", fileId: null }
+      : { type: "official", id: 0, name: "Official song", artist: "", fileId: null };
   return {
     name,
     author: s.author || "Unknown",
     description,
     levelId: Number.isFinite(numericLevelId) && numericLevelId > 0 ? numericLevelId : null,
     difficulty: { demon: false, demonType: null, stars: Number.parseInt(s.k18 || "0", 10) || 0, rating: 0 },
-    song: { type: songId > 0 ? "custom" : "official", id: songId, name: songId > 0 ? `Song ${songId}` : "Official song", artist: "", fileId: songId > 0 ? String(songId) : null }
+    song
   };
 }

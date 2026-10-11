@@ -1,8 +1,17 @@
-export const PLAYER_RUNTIME_URL = new URL("/app/play/index.html?gmdplayer=1", globalThis.location.href).href;
+/**
+ * Resolved from this module's own URL, so the runtime keeps working when the
+ * app is served from a sub-path. Importing the module never needs a browser.
+ */
+export function playerRuntimeUrl() {
+  return new URL("../../app/play/index.html?gmdplayer=1", import.meta.url).href;
+}
+export const PLAYER_RUNTIME_URL = playerRuntimeUrl();
 
 function getRuntime(frame) {
   const win = frame?.contentWindow;
-  const game = win?.Phaser?.GAMES?.[0];
+  // The runtime publishes its Phaser game on window.gmdRuntimeGame; older builds
+  // may only expose it through the Phaser global registry.
+  const game = win?.gmdRuntimeGame || win?.Phaser?.GAMES?.[0];
   if (!game) return null;
   try {
     const scene = game.scene.getScene("GameScene");
@@ -73,17 +82,34 @@ export class PlayerAdapter {
       else this.onWarning("This browser cannot pass a local audio file to the player; the original song behavior will be used.");
     }
 
-    const frame = document.createElement("iframe");
+    const adopted = options.frame || null;
+    const frame = adopted || document.createElement("iframe");
     frame.className = "player-frame";
     frame.title = `Playing ${levelDocument.metadata?.name || "Geometry Dash level"}`;
     frame.allow = "autoplay; fullscreen; gamepad";
     frame.allowFullscreen = true;
     frame.setAttribute("aria-label", frame.title);
+    frame.removeAttribute("aria-hidden");
     this.iframe = frame;
+    // "keepAlive" means the caller parks the frame in the page on purpose (for a
+    // pre-warmed runtime), so it must not be thrown away when the preview closes.
+    this._keepAlive = options.keepAlive === true;
     window.addEventListener("message", this._onMessage);
     window.addEventListener("keydown", this._onKey);
-    mount.replaceChildren(frame);
-    frame.src = PLAYER_RUNTIME_URL;
+    // Let the caller swap its own loading UI for the runtime's loading screen as
+    // soon as the frame has booted, instead of holding an opaque overlay over it.
+    if (typeof options.onMounted === "function") {
+      frame.addEventListener("load", () => {
+        try { options.onMounted(); } catch (_) { /* caller's problem, not the load path */ }
+      }, { once: true });
+    }
+    // Never re-parent an existing frame: moving an iframe in the DOM makes the
+    // browser tear the runtime down and boot it again. An adopted (pre-warmed)
+    // frame is already sitting in the caller's mount.
+    if (!adopted) {
+      mount.replaceChildren(frame);
+      frame.src = PLAYER_RUNTIME_URL;
+    }
 
     try {
       const runtime = await waitForRuntime(frame);
@@ -91,6 +117,20 @@ export class PlayerAdapter {
       const { win, game } = runtime;
       win.isEditor = false;
       win.levelID = null;
+
+      // A pre-warmed runtime may already be holding this exact level, paused and
+      // muted off-screen: resuming it is what makes "Play preview" instant.
+      const staged = options.staged === true &&
+        !this._audioObjectUrl &&
+        String(win.currentlevel?.[2]) === String(levelDocument.id);
+      if (staged) {
+        if (game?.sound) game.sound.mute = false;
+        this._send({ type: "play" });
+        try { frame.contentWindow.focus(); frame.focus(); } catch (_) {}
+        return true;
+      }
+      if (game?.sound) game.sound.mute = false;
+
       const { songKey, songAuthor } = resolveSong(win, levelDocument);
       let localSongBuffer = null;
 
@@ -195,6 +235,9 @@ export class PlayerAdapter {
       }
 
       const afterLoad = await new Promise((resolve, reject) => {
+        // Callers that only want the level handed to the runtime can skip the
+        // play-mode handshake and show the preview immediately.
+        if (options.allowUnconfirmedStart) return resolve(getRuntime(frame) || null);
         const startedAt = Date.now();
         const check = () => {
           const current = getRuntime(frame);
@@ -215,9 +258,9 @@ export class PlayerAdapter {
         check();
       });
 
-      this._runtime = afterLoad;
+      this._runtime = afterLoad || this._runtime;
 
-      const started = await new Promise(resolve => {
+      const started = options.allowUnconfirmedStart ? true : await new Promise(resolve => {
         const startedAt = Date.now();
         const check = () => {
           const current = getRuntime(frame);
@@ -289,12 +332,18 @@ export class PlayerAdapter {
     this.stop();
   }
 
+  /** Pauses whatever is on screen in the runtime (used before parking it). */
+  park() {
+    this._send({ type: "park" });
+  }
+
   stop(notify = true) {
     window.removeEventListener("message", this._onMessage);
     window.removeEventListener("keydown", this._onKey);
     window.clearTimeout(this._readyTimer);
     this._readyTimer = null;
-    if (this.iframe) this.iframe.remove();
+    const frame = this.iframe;
+    if (frame && !this._keepAlive) frame.remove();
     if (this._audioObjectUrl) globalThis.URL?.revokeObjectURL?.(this._audioObjectUrl);
     this._audioObjectUrl = null;
     this._runtime = null;

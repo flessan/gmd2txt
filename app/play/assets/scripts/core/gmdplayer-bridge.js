@@ -4,7 +4,7 @@
   const send = (type, extra = {}) => window.parent.postMessage({ channel: CHANNEL, type, ...extra }, "*");
 
   function runtime() {
-    const game = window.Phaser?.GAMES?.[0];
+    const game = window.gmdRuntimeGame || window.Phaser?.GAMES?.[0];
     if (!game) return null;
     try {
       const scene = game.scene.getScene("GameScene");
@@ -44,9 +44,42 @@
     }
   });
 
+  // The bundled build only wires jumping to pointer input, so the usual Geometry
+  // Dash keys are mirrored onto the very same entry points the pointer path uses.
+  // Holding a key keeps `upKeyDown` set, which is also how auto-jumping works.
+  const JUMP_KEYS = new Set([" ", "Spacebar", "ArrowUp", "Up", "w", "W"]);
+  function keyboardJump(pressed) {
+    const scene = runtime()?.scene;
+    if (!scene || window.isEditor) return;
+    if (scene._menuActive || scene._paused || scene._levelWon) return;
+    if (pressed) {
+      if (!scene._state?.upKeyDown) scene._pushButton?.();
+    } else if (scene._state?.upKeyDown) {
+      scene._releaseButton?.();
+    }
+  }
+
+  window.addEventListener("keydown", event => {
+    if (event.repeat || !JUMP_KEYS.has(event.key)) return;
+    keyboardJump(true);
+  });
+  window.addEventListener("keyup", event => {
+    if (!JUMP_KEYS.has(event.key)) return;
+    keyboardJump(false);
+  });
+  // A key held while the player loses focus must not keep the cube jumping.
+  window.addEventListener("blur", () => {
+    const scene = runtime()?.scene;
+    if (scene?._state?.upKeyDown) scene._releaseButton?.();
+  });
+
   window.addEventListener("message", async event => {
+    // A runtime opened on its own (window.parent === window) would otherwise
+    // receive its own outgoing messages and wait forever for a level hand-off.
+    if (window.parent === window) return;
     if (event.source !== window.parent || event.data?.channel !== CHANNEL) return;
     const message = event.data;
+    window._gmdplayerHandoffRequested = true;
     try {
       const { game, scene } = await waitForScene();
       if (message.type === "load-level") {
@@ -102,6 +135,25 @@
         if (scene._paused) scene._resumeGame(); else scene._pauseGame();
       } else if (message.type === "restart") {
         scene._restartLevel();
+      } else if (message.type === "park") {
+        // The embedder is hiding the frame: pause it, wind the level back to the
+        // start and stay silent, so showing it again is instant.
+        try {
+          if (game?.sound) game.sound.mute = true;
+          if (!scene._paused && typeof scene._pauseGame === "function") scene._pauseGame();
+          if (typeof scene._restartLevel === "function") scene._restartLevel();
+          // The runtime refuses to pause during a level's intro, so keep trying
+          // until it takes: a parked runtime must not keep playing off-screen.
+          let attempts = 0;
+          const settle = () => {
+            const current = runtime()?.scene;
+            if (!current || current._paused === true || current._menuActive) return;
+            if (++attempts > 8) return;
+            if (typeof current._pauseGame === "function") current._pauseGame();
+            if (current._paused !== true) setTimeout(settle, 500);
+          };
+          setTimeout(settle, 500);
+        } catch (_) {}
       } else if (message.type === "exit") {
         sendProgress(scene);
         send("exit-request");
