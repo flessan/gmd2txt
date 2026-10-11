@@ -143,6 +143,10 @@ export async function buildResolutionArchive(pngFile, plistFile, selectedTargets
   if (metadataSize && (round(metadataSize.width) !== source.width || round(metadataSize.height) !== source.height)) warnings.push("PLIST metadata reports " + metadataSize.width + "×" + metadataSize.height + " but the PNG is " + source.width + "×" + source.height + ". The PNG dimensions will be used.");
   if (source.width % 4 !== 0 || source.height % 4 !== 0) warnings.push("The source atlas dimensions are not divisible by four. Output sizes will be rounded to whole pixels; review the result before using it in-game.");
   const stem = normalizeAtlasStem(options.stem || pngFile.name), files = new Map(), variants = [];
+  const plistStem = normalizeAtlasStem(String(plistFile.name).replace(/\.plist$/i, ".png"));
+  if (plistStem.toLowerCase() !== stem.toLowerCase()) {
+    warnings.push("The PNG and PLIST filenames have different base names. Frame bounds were checked, but matching names alone cannot prove these are the same source pack.");
+  }
   for (const id of targets) {
     if (options.signal?.aborted) throw new DOMException("Conversion cancelled.", "AbortError");
     const target = RESOLUTION_TARGETS[id], width = Math.max(1, round(source.width * target.scale)), height = Math.max(1, round(source.height * target.scale));
