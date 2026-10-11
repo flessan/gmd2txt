@@ -25,6 +25,7 @@ import { hashFileContent } from "../../core/workbench/content-hash.js";
 import { normalizeTags, mergeTags } from "../../core/documents/tags.js";
 import { getWorkbenchValue, setWorkbenchValue, saveViewPreferences, listSavedSearches, saveSavedSearch, deleteSavedSearch, recordActivity, getViewPreferences } from "../../core/storage/workbench-database.js";
 import { writeZipBlob } from "../../core/textures/zip.js";
+import { buildResolutionArchive, normalizeAtlasStem } from "../../core/textures/resolution-converter.js";
 import { normalizeViewPreference, resolveActiveProject, normalizeRecentActivity, normalizeSavedSearches } from "../../core/startup/release-state.js";
 
 const app = document.querySelector("#app");
@@ -34,7 +35,7 @@ const atlasPreviewCache = new Map();
 const textureCardPreviewCache = new Map();
 const songResolver = new SongResolver({ getAudioAsset });
 let membershipIndexCache=null;
-const state = { route: parseRoute(), booting:true, storageError:null, resourceWarnings:[], serviceWorkerStatus:"checking", installPrompt:null, installDismissed:false, onboardingDismissed:false, levels:[], saves: [], textures: [], audioAssets: [], projects: [], activeProjectId: null, activeProject: null, projectMemberQuery: "", restorePreview: null, restoreFile: null, restoreResourceKeys: new Set(), projectProgress: null, projectAbortController: null, search: "", globalQuery: "", libraryView: "grid", libraryFilter: "all", libraryLimit:100, audioLimit:100, assetLimit:100, projectLimit:100, textureLimit:100, saveLimit:100, saveLevelLimit:200, importing: false, importStatus: "", imported: [], player: null, returnTo: "#/library", saveTab: "overview", saveQuery: "", selectedSaveLevels: new Set(), showAllSensitive: false, rawView: "json", rawFile: "gameManager", activeSaveId: null, activeTexture: null, activeSheetId: null, textureQuery: "", selectedSprite: null, replacementMode: "fit", spriteLimit:200, audioQuery: "", audioFilter: "all", audioSort: "name", audioSelectedId: null, audioEditingId: null, assetQuery: "", assetFilter: "all", assetSort: "date", projectQuery: "", inspectorTab: "summary", inspectorQuery: "", inspectorSort: "count", inspectorLimit: 80, audioPreviewUrl: null, audioPreviewId: null, selections: Object.create(null), selectionContexts: Object.create(null), palette: null, paletteQuery: "", savedSearches: [], currentSavedSearch: Object.create(null), searchFilters: { library: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, audio: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, assets: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, textures: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, projects: { tags: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" } }, viewPreferences: {}, batchSummary: null, batchResults: [], cancelImport: false, ignoredImportFiles: [], undoStack:[],redoStack:[] };
+const state = { route: parseRoute(), booting:true, storageError:null, resourceWarnings:[], serviceWorkerStatus:"checking", installPrompt:null, installDismissed:false, onboardingDismissed:false, levels:[], saves: [], textures: [], audioAssets: [], projects: [], activeProjectId: null, activeProject: null, projectMemberQuery: "", restorePreview: null, restoreFile: null, restoreResourceKeys: new Set(), projectProgress: null, projectAbortController: null, search: "", globalQuery: "", libraryView: "grid", libraryFilter: "all", libraryLimit:100, audioLimit:100, assetLimit:100, projectLimit:100, textureLimit:100, saveLimit:100, saveLevelLimit:200, importing: false, importStatus: "", imported: [], player: null, returnTo: "#/library", saveTab: "overview", saveQuery: "", selectedSaveLevels: new Set(), showAllSensitive: false, rawView: "json", rawFile: "gameManager", activeSaveId: null, activeTexture: null, activeSheetId: null, textureQuery: "", selectedSprite: null, replacementMode: "fit", resolutionLab: { pngFile: null, plistFile: null, archive: null, report: null, busy: false, targets: { original: true, hd: true, uhd: true } }, spriteLimit:200, audioQuery: "", audioFilter: "all", audioSort: "name", audioSelectedId: null, audioEditingId: null, assetQuery: "", assetFilter: "all", assetSort: "date", projectQuery: "", inspectorTab: "summary", inspectorQuery: "", inspectorSort: "count", inspectorLimit: 80, audioPreviewUrl: null, audioPreviewId: null, selections: Object.create(null), selectionContexts: Object.create(null), palette: null, paletteQuery: "", savedSearches: [], currentSavedSearch: Object.create(null), searchFilters: { library: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, audio: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, assets: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, textures: { tags: "", projectId: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" }, projects: { tags: "", favorite: false, fromDate:"", toDate:"", tagMode:"all" } }, viewPreferences: {}, batchSummary: null, batchResults: [], cancelImport: false, ignoredImportFiles: [], undoStack:[],redoStack:[] };
 
 function parseRoute() {
   const raw = (location.hash.replace(/^#/, "") || "/home");
@@ -48,6 +49,7 @@ function parseRoute() {
   if (parts[0] === "library" && parts[1] === "inspect" && parts[2]) return { name: "inspect", id: decodeURIComponent(parts[2]) };
   if (parts[0] === "library" && parts[1]) return { name: "details", id: decodeURIComponent(parts[1]) };
   if (parts[0] === "library") return { name: "library" };
+  if (parts[0] === "tools" && parts[1] === "resolution-lab") return { name: "resolution-lab" };
   if (parts[0] === "tools" && parts[1] === "save") return { name: "save", id: parts[2] ? decodeURIComponent(parts[2]) : null };
   if (parts[0] === "tools" && parts[1] === "textures") return { name: "textures", id: parts[2] ? decodeURIComponent(parts[2]) : null };
   if (parts[0] === "tools" && parts[1] === "audio") return { name: "audio" };
@@ -440,12 +442,84 @@ function renderProjectRestore() {
   app.innerHTML = `<div class="shell">${header("projects")}<main class="main-content project-restore-page"><a class="back-link" href="#/projects">← Projects</a><div class="page-heading"><div><div class="eyebrow">Portable workspace</div><h1>Import or restore project</h1><p>Backups are validated before any records are written. Restore is additive; existing resources are never replaced.</p></div><button class="btn primary" data-action="project-import-open">Choose .gmdproject</button></div>${projectTaskStatus()}${preview ? `<section class="workbench-section restore-preview"><div class="eyebrow">Backup preview</div><h2>${esc(preview.project.name)}</h2><p>${esc(preview.project.description || "No description")} · Created ${esc(fmtDate(preview.project.createdAt))} · Backup contents ${fmtBytes(preview.totalBytes)}</p><div class="restore-category-options">${PROJECT_RESOURCE_TYPES.map(type => { const labels = { levels: "Levels", audioAssets: "Songs", textureWorkspaces: "Texture workspaces", saveSnapshots: "Save snapshots" }; const resources = preview.manifest.resources.filter(item => item.type === type); const selectedCount = resources.filter(item => state.restoreResourceKeys.has(`${type}:${item.originalId}`)).length; return `<section class="restore-category"><label><input type="checkbox" data-restore-category="${type}" ${resources.length && selectedCount === resources.length ? "checked" : ""}><strong>${labels[type]}</strong><span>${selectedCount} / ${resources.length} selected</span></label><div class="restore-resource-list">${resources.map(item => { const key = `${type}:${item.originalId}`; return `<label><input type="checkbox" data-restore-resource="${esc(key)}" ${state.restoreResourceKeys.has(key) ? "checked" : ""}><span><strong>${esc(item.filename || item.provenance?.filename || item.originalId)}</strong><small>Original ID ${esc(item.originalId)}${item.provenance?.origin ? ` · ${esc(item.provenance.origin)}` : ""}</small></span></label>`; }).join("") || `<small class="muted">None included</small>`}</div></section>`; }).join("")}</div>${preview.missingReferences?.length ? `<p class="restore-warning">${preview.missingReferences.length} references were already missing in the source project; they will remain marked unavailable.</p>` : ""}<div class="restore-actions"><button class="btn" data-action="project-restore-cancel">Cancel</button><button class="btn primary" data-action="project-restore">Restore selected resources</button></div></section>` : `<section class="restore-dropzone"><div class="restore-file-symbol">↥</div><h2>Select a GMDPlayer project backup</h2><p>Choose a .gmdproject archive to validate its manifest and inspect its contents. Your Library is not changed during preview.</p><button class="btn primary" data-action="project-import-open">Choose backup file</button></section>`}<div class="restore-safety-note">Archives are checked for safe paths, resource IDs, file sizes, and CRC-32 checksums before restore. Imported records receive new local IDs.</div></main></div>`;
 }
 
+function resolutionBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return value + " B";
+  if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
+  return (value / (1024 * 1024)).toFixed(1) + " MB";
+}
+function renderResolutionLab() {
+  const lab = state.resolutionLab, png = lab.pngFile, plist = lab.plistFile;
+  const stem = png ? normalizeAtlasStem(png.name) : "YourAtlas";
+  const choices = [
+    {id:"original",title:"ORIGINAL",subtitle:"Low resolution",scale:"¼ SIZE",example:stem+".png",desc:"Derived base-resolution texture set."},
+    {id:"hd",title:"HD",subtitle:"High definition",scale:"½ SIZE",example:stem+"-hd.png",desc:"Half of the supplied UHD atlas."},
+    {id:"uhd",title:"UHD",subtitle:"Full resolution",scale:"SOURCE",example:stem+"-uhd.png",desc:"Keep source pixels and matching metadata."}
+  ];
+  let status = "Everything runs locally in your browser. Your files are never uploaded.";
+  if (lab.busy) status = "Scaling atlas pixels and rebuilding PLIST files…";
+  else if (lab.report) status = "Ready to download · " + lab.report.variants.length + " pair(s) validated";
+  else if (png && plist) status = "Both source files are ready. Choose outputs and generate the pack.";
+  else if (png || plist) status = "One file selected. Add its matching " + (png ? "PLIST." : "PNG atlas.");
+  app.innerHTML = '<div class="resolution-lab-shell"><div class="resolution-lab-shade"></div><div class="resolution-lab-ground" aria-hidden="true"></div>' +
+    '<header class="resolution-lab-topbar"><a class="resolution-back" href="#/tools">‹ ALL TOOLS</a><div class="resolution-brand"><img src="./play/assets/sprites/GJ_square01.png" alt="" aria-hidden="true"><span>GMDPLAYER</span><strong>RESOLUTION LAB</strong></div><span class="resolution-local"><i></i> LOCAL PROCESSING</span></header>' +
+    '<main class="resolution-lab-main">' +
+      '<section class="resolution-hero"><div class="resolution-hero-copy"><span class="resolution-eyebrow">TEXTURE PACK WORKSHOP</span><h1>One atlas.<br><em>Three resolutions.</em></h1><p>Upload a UHD PNG and the PLIST made for that exact atlas. We resize the image, scale sprite geometry and offsets, update texture metadata, then package matching PNG + PLIST pairs.</p></div><img class="resolution-hero-art" src="./play/assets/sprites/GJ_MenuBeta.png" alt="" aria-hidden="true"><div class="resolution-hero-stats"><span><b>01</b> INPUT</span><span><b>02</b> SELECT</span><span><b>03</b> EXPORT</span></div></section>' +
+      '<section class="resolution-panel"><div class="resolution-section-title"><div><span class="resolution-eyebrow">STEP 01</span><h2>Bring your source files</h2><p>Choose the UHD atlas PNG and its matching PLIST.</p></div><span class="resolution-step">1 / 3</span></div>' +
+        '<div class="resolution-source-grid">' +
+          '<div class="resolution-file-card '+(png?'is-loaded':'')+'"><span class="resolution-file-icon"><img src="./play/assets/sprites/import.png" alt="" aria-hidden="true"></span><span class="resolution-file-copy"><small>ATLAS IMAGE</small><strong>'+ (png?esc(png.name):'UHD atlas PNG') +'</strong><em>'+(png?resolutionBytes(png.size):'Required · .png')+'</em></span><button class="resolution-select" data-action="resolution-pick-png">'+(png?'CHANGE':'CHOOSE PNG')+'</button></div>' +
+          '<div class="resolution-file-card '+(plist?'is-loaded':'')+'"><span class="resolution-file-icon"><img src="./play/assets/sprites/export.png" alt="" aria-hidden="true"></span><span class="resolution-file-copy"><small>ATLAS METADATA</small><strong>'+(plist?esc(plist.name):'Matching UHD PLIST')+'</strong><em>'+(plist?resolutionBytes(plist.size):'Required · .plist')+'</em></span><button class="resolution-select" data-action="resolution-pick-plist">'+(plist?'CHANGE':'CHOOSE PLIST')+'</button></div>' +
+        '</div><input id="resolution-png-input" type="file" accept=".png,image/png" hidden><input id="resolution-plist-input" type="file" accept=".plist,text/xml,application/xml" hidden>' +
+        '<div class="resolution-drop-note"><span>＋</span><div><strong>Or drop both files anywhere in this workspace</strong><small>PNG and PLIST are matched by file type. No network upload.</small></div></div></section>' +
+      '<section class="resolution-panel"><div class="resolution-section-title"><div><span class="resolution-eyebrow">STEP 02</span><h2>Choose your outputs</h2><p>Each version gets a PLIST with matching frame data and filenames.</p></div><span class="resolution-step">2 / 3</span></div>' +
+        '<div class="resolution-output-grid">'+choices.map(choice=>{
+          const checked=lab.targets[choice.id], result=lab.report?.variants.find(item=>item.id===choice.id);
+          return '<label class="resolution-output-card '+(checked?'is-selected':'')+'"><input type="checkbox" data-resolution-target="'+choice.id+'" '+(checked?'checked':'')+'><span class="resolution-check">'+(checked?'✓':'')+'</span><span class="resolution-scale">'+choice.scale+'</span><strong>'+choice.title+'</strong><span class="resolution-subtitle">'+choice.subtitle+'</span><span class="resolution-preview"><img src="./play/assets/sprites/GJ_square01.png" alt="" aria-hidden="true"><i></i><i></i><i></i></span><span class="resolution-example">'+esc(result?result.width+' × '+result.height+' px':choice.example)+'</span><small>'+choice.desc+'</small>'+(result?'<span class="resolution-complete">✓ '+result.frameCount+' frames · '+resolutionBytes(result.pngBytes+result.plistBytes)+'</span>':'')+'</label>';
+        }).join('')+'</div>' +
+        '<div class="resolution-method-note"><b>i</b><div><strong>What gets converted?</strong><p>Frame rectangles, offsets, source sizes, trimmed color rectangles, atlas dimensions and PNG references. Original/HD exports use legacy sprite-field names; UHD preserves the supplied format.</p></div></div></section>' +
+      '<section class="resolution-panel"><div class="resolution-section-title"><div><span class="resolution-eyebrow">STEP 03</span><h2>Build the pack</h2><p>Validate the output, then download everything as one ZIP.</p></div><span class="resolution-step">3 / 3</span></div>' +
+        '<div class="resolution-status-row"><i class="'+(lab.report?'is-ready':lab.busy?'is-busy':'')+'"></i><span>'+esc(status)+'</span></div>' +
+        (lab.report?.warnings.length?'<div class="resolution-warnings">'+lab.report.warnings.map(w=>'<p>! '+esc(w)+'</p>').join('')+'</div>':'')+
+        (lab.report?'<div class="resolution-report"><div><small>SOURCE ATLAS</small><strong>'+lab.report.source.width+' × '+lab.report.source.height+' px</strong><span>'+lab.report.source.frameCount+' sprite frames</span></div><div><small>OUTPUT</small><strong>'+lab.report.variants.length+' variants</strong><span>'+lab.report.files.length+' files packaged</span></div><div><small>VALIDATION</small><strong>Frame bounds OK</strong><span>All frames fit within generated atlases.</span></div></div>':'')+
+        '<div class="resolution-actions"><button class="resolution-build" data-action="resolution-build" '+(!png||!plist||lab.busy||!Object.values(lab.targets).some(Boolean)?'disabled':'')+'><img src="./play/assets/sprites/GJ_button_01.png" alt="" aria-hidden="true"><span>'+(lab.busy?'BUILDING…':lab.report?'REBUILD PACK':'GENERATE RESOLUTION PACK')+'</span></button><button class="resolution-download" data-action="resolution-download" '+(!lab.report||lab.busy?'disabled':'')+'>↓ DOWNLOAD ZIP</button><button class="resolution-reset" data-action="resolution-reset" '+(!png&&!plist&&!lab.report?'disabled':'')+'>START OVER</button></div>' +
+        '<p class="resolution-honesty">Original and HD are derived from UHD. If official packs use different art or trim geometry, those differences cannot be reconstructed from UHD alone.</p></section>' +
+    '</main></div>';
+}
+async function runResolutionBuild() {
+  const lab=state.resolutionLab;
+  if (!lab.pngFile || !lab.plistFile || lab.busy) return;
+  const targets=Object.keys(lab.targets).filter(key=>lab.targets[key]);
+  lab.busy=true; lab.archive=null; lab.report=null; renderResolutionLab();
+  try {
+    const result=await buildResolutionArchive(lab.pngFile,lab.plistFile,targets,{stem:normalizeAtlasStem(lab.pngFile.name)});
+    lab.archive=result.blob; lab.report=result;
+    showToast("Resolution pack built. Review the notes, then download the ZIP.");
+  } catch(error) {
+    lab.archive=null; lab.report=null;
+    showToast(error.message || "Could not convert this atlas.","error");
+  } finally {
+    lab.busy=false;
+    if(state.route.name==="resolution-lab") renderResolutionLab();
+  }
+}
+function acceptResolutionFiles(files) {
+  const list=Array.from(files||[]);
+  const png=list.find(file=>String(file.name).toLowerCase().endsWith(".png"));
+  const plist=list.find(file=>String(file.name).toLowerCase().endsWith(".plist"));
+  const lab=state.resolutionLab;
+  if(png){lab.pngFile=png;lab.archive=null;lab.report=null;}
+  if(plist){lab.plistFile=plist;lab.archive=null;lab.report=null;}
+  if(list.length&&!png&&!plist) showToast("Choose one PNG atlas and its matching PLIST.","error");
+  renderResolutionLab();
+}
+
 function renderTools() {
   const visibleSaves=state.saves.slice(0,state.saveLimit);getSelectionModel("saves",visibleSaves.map(save=>save.id));
   app.innerHTML = `<div class="shell">${header("tools")}<main class="main-content"><div class="page-heading"><div><div class="eyebrow">Workspace</div><h1>Tools</h1><p>Explore your Geometry Dash files locally.</p></div></div>
     <div class="workspace-tool-grid"><a class="workspace-tool-link" href="#/tools/assets"><span class="tool-link-icon">${icon("library")}</span><div><strong>Asset Browser</strong><small>${state.levels.length} levels · ${state.audioAssets.length} songs · ${state.textures.length} texture packs</small></div><span>Open →</span></a><a class="workspace-tool-link" href="#/tools/audio"><span class="tool-link-icon">${icon("play")}</span><div><strong>Songs & Audio</strong><small>Local audio library and song overrides</small></div><span>Open →</span></a></div>
     <section class="save-tool-card"><div><div class="eyebrow">On this device</div><h2>Save Explorer</h2><p>Inspect CCGameManager.dat and CCLocalLevels.dat, then pull created levels into your Library.</p><button class="btn primary" data-action="browse">Import save files</button> <button class="btn" data-action="open-save">Open Save Explorer</button></div><span class="local-badge"><i></i>Local only</span></section>
     ${state.saves.length ? `<div class="section-head tools-section-head"><div><h2>Recent saves</h2></div></div>${selectionToolbar("saves",visibleSaves.map(save=>save.id),{type:"saves",resourceType:"saveSnapshots"})}<div class="save-recent-list">${visibleSaves.map(save => {const picked=state.selections.saves?.has(save.id);return `<div class="selectable-recent ${picked?"selection-selected":""}" data-selectable="saves" data-id="${esc(save.id)}" tabindex="0" role="option" aria-selected="${!!picked}"><input class="item-selection" type="checkbox" data-select-item="saves" data-id="${esc(save.id)}" aria-label="Select snapshot ${esc(save.sourceFilenames?.join(" + ")||"save")}" ${picked?"checked":""}><button class="save-recent" data-action="open-save" data-id="${esc(save.id)}"><span><strong>${esc(save.sourceFilenames?.join(" + ") || "Geometry Dash save")}</strong><small>Imported ${esc(fmtDate(save.importedAt))} · ${esc(save.document?.normalized?.localLevels?.length || 0)} local levels</small></span><span>Open →</span></button></div>`}).join("")}</div>${visibleSaves.length<state.saves.length?`<button class="btn load-more" data-action="load-more" data-scope="saves">Show next save snapshots</button>`:""}` : `<div class="empty-state"><h3>No save snapshots yet</h3><p>Choose one or both Geometry Dash .dat files to explore a local snapshot.</p></div>`}
+    <section class="save-tool-card resolution-tool-card"><div><div class="eyebrow">Resolution tools</div><h2>Texture Resolution Lab</h2><p>Generate Original, HD and UHD texture pairs from a UHD atlas and matching PLIST. Frame coordinates and metadata are converted together.</p><a class="btn primary" href="#/tools/resolution-lab">Open Resolution Lab →</a></div><span class="local-badge"><i></i>On-device processing</span></section>
     <section class="save-tool-card texture-tool-card"><div><div class="eyebrow">Creative workspace</div><h2>Texture Pack Editor</h2><p>Browse atlas sprites, inspect XML PLIST metadata, replace exact slots, split or repack sheets, and export ZIP packs.</p><button class="btn primary" data-action="browse">Import PNG / PLIST / ZIP</button> <button class="btn" data-action="open-textures">Open Texture Workspace</button></div><span class="local-badge"><i></i>Originals preserved</span></section>
     ${state.textures.length ? `<div class="section-head tools-section-head"><div><h2>Texture workspaces</h2></div></div><div class="save-recent-list">${state.textures.map(pack => `<button class="save-recent" data-action="open-texture" data-id="${esc(pack.id)}"><span><strong>${esc(pack.name)}</strong><small>${pack.sheetCount||0} sheets · Updated ${esc(fmtDate(pack.updatedAt))}</small></span><span>Open →</span></button>`).join("")}</div>` : ""}</main></div>`;
 }
@@ -1083,6 +1157,7 @@ async function refresh() {
   renderInstallAffordance();updateNetworkAffordance();
   document.body.classList.remove("nav-open");
   document.body.classList.toggle("texture-mode", state.route.name === "textures");
+  document.body.classList.toggle("resolution-mode", state.route.name === "resolution-lab");
   try {
     if (state.route.name === "play") renderPlayer();
     else {
@@ -1097,6 +1172,7 @@ async function refresh() {
       else if (state.route.name === "textures") await renderTextureWorkspace();
       else if (state.route.name === "audio") renderAudioWorkspace();
       else if (state.route.name === "assets") renderAssetsWorkspace();
+      else if (state.route.name === "resolution-lab") renderResolutionLab();
       else if (state.route.name === "tools") renderTools();
       else if (state.route.name === "about") renderAbout();
       else renderHome();
@@ -1112,6 +1188,7 @@ function repaintForImport() {
   if (state.route.name === "home") renderHome();
   else if (state.route.name === "library") renderLibrary();
   else if (state.route.name === "tools") renderTools();
+  else if (state.route.name === "resolution-lab") renderResolutionLab();
   else if (state.route.name === "save") renderSaveExplorer();
   else if (state.route.name === "textures") renderTextureWorkspace();
   else if (state.route.name === "audio") renderAudioWorkspace();
@@ -1265,6 +1342,20 @@ app.addEventListener("click", async event => {
   const control = event.target.closest("[data-action]");
   if (!control) return;
   const { action, id } = control.dataset;
+  if (action === "resolution-pick-png") { document.querySelector("#resolution-png-input")?.click(); return; }
+  if (action === "resolution-pick-plist") { document.querySelector("#resolution-plist-input")?.click(); return; }
+  if (action === "resolution-build") { await runResolutionBuild(); return; }
+  if (action === "resolution-download") {
+    if (!state.resolutionLab.archive) return;
+    downloadBlob(state.resolutionLab.archive, normalizeAtlasStem(state.resolutionLab.pngFile?.name) + "-resolution-pack.zip");
+    showToast("Resolution ZIP downloaded. Review it before installing into Geometry Dash.");
+    return;
+  }
+  if (action === "resolution-reset") {
+    state.resolutionLab = { pngFile:null, plistFile:null, archive:null, report:null, busy:false, targets:{original:true,hd:true,uhd:true} };
+    renderResolutionLab();
+    return;
+  }
   if(action==="retry-startup"){await refresh();return;}
   if(action==="retry-route"){await refresh();return;}
   if(action==="dismiss-onboarding"){state.onboardingDismissed=true;setWorkbenchValue("onboardingDismissed",true).catch(()=>{});renderHome();return;}
@@ -1595,6 +1686,19 @@ app.addEventListener("change", async event => {
   }
 });
 document.addEventListener("change", async event => {
+  if (event.target.id === "resolution-png-input" && event.target.files?.[0]) {
+    state.resolutionLab.pngFile=event.target.files[0]; state.resolutionLab.archive=null; state.resolutionLab.report=null;
+    event.target.value=""; if(state.route.name==="resolution-lab") renderResolutionLab(); return;
+  }
+  if (event.target.id === "resolution-plist-input" && event.target.files?.[0]) {
+    state.resolutionLab.plistFile=event.target.files[0]; state.resolutionLab.archive=null; state.resolutionLab.report=null;
+    event.target.value=""; if(state.route.name==="resolution-lab") renderResolutionLab(); return;
+  }
+  if (event.target.matches("[data-resolution-target]")) {
+    state.resolutionLab.targets[event.target.dataset.resolutionTarget]=event.target.checked;
+    state.resolutionLab.archive=null; state.resolutionLab.report=null;
+    if(state.route.name==="resolution-lab") renderResolutionLab(); return;
+  }
   if (event.target.id === "project-input" && event.target.files?.[0]) handleProjectBackupFile(event.target.files[0]);
   if (event.target.id === "file-input" || event.target.id === "audio-input" || event.target.id === "folder-input") { const files=Array.from(event.target.files||[]);event.target.value="";handleFiles(files); }
   if (event.target.id === "replacement-mode") { state.replacementMode = "fit"; }
@@ -1622,7 +1726,9 @@ window.addEventListener("dragover", event => { if (state.route.name !== "play" &
 window.addEventListener("dragleave", event => { if (state.route.name === "play") return; dragCounter = Math.max(0, dragCounter - 1); if (!dragCounter) document.querySelector(".drop-curtain")?.remove(); });
 window.addEventListener("drop", event => {
   if (state.route.name === "play" || !event.dataTransfer?.files?.length) return;
-  event.preventDefault(); dragCounter = 0; document.querySelector(".drop-curtain")?.remove(); handleFiles(event.dataTransfer.files);
+  event.preventDefault(); dragCounter = 0; document.querySelector(".drop-curtain")?.remove();
+  if (state.route.name === "resolution-lab") { acceptResolutionFiles(event.dataTransfer.files); return; }
+  handleFiles(event.dataTransfer.files);
 });
 
 renderBootScreen();
