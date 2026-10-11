@@ -47,6 +47,20 @@ function remapLegacyFrameKeys(xml) {
   }
   return xml;
 }
+function ensureLegacyAliases(xml) {
+  const parsed = parsePlist(xml);
+  const insertions = [];
+  for (const frame of Object.values(parsed.frames || {})) {
+    if (Array.isArray(frame.raw?.aliases)) continue;
+    const start = frame._xml?.nodeStart;
+    if (start == null) continue;
+    const openEnd = xml.indexOf(">", start) + 1;
+    if (openEnd > 0) insertions.push({ at: openEnd, text: "\n<key>aliases</key>\n<array/>" });
+  }
+  insertions.sort((a, b) => b.at - a.at);
+  for (const edit of insertions) xml = xml.slice(0, edit.at) + edit.text + xml.slice(edit.at);
+  return xml;
+}
 function validateFrames(parsed, width, height, label) {
   const problems = [];
   for (const frame of Object.values(parsed.frames || {})) {
@@ -86,6 +100,7 @@ export function convertPlistResolution(xml, options = {}) {
   for (const key of ["textureFileName", "realTextureFileName"]) output = replacePlistKeyValue(output, key, options.pngName || "").xml;
   if (options.legacyFormat) {
     output = remapLegacyFrameKeys(output);
+    output = ensureLegacyAliases(output);
     const format = replacePlistKeyValue(output, "format", "3");
     output = format.xml;
     if (!format.changed) warnings.push("PLIST metadata has no format entry. Legacy sprite field names were generated, but the format marker could not be updated.");

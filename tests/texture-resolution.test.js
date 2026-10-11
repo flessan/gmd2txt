@@ -23,6 +23,7 @@ test("UHD PLIST coordinates scale into an HD legacy-field PLIST", () => {
   assert.equal(frame.offset.x, -1); assert.equal(frame.offset.y, 2);
   assert.match(result.xml, /<key>textureRect<\/key>/);
   assert.match(result.xml, /<key>spriteSize<\/key>/);
+  assert.match(result.xml, /<key>aliases<\/key>/);
   assert.match(result.xml, /<integer>3<\/integer>/);
   assert.match(result.xml, /sheet-hd\.png/);
   assert.equal(result.frameCount, 1); assert.deepEqual(result.warnings, []);
