@@ -119,10 +119,9 @@ export class PlayerAdapter {
       win.levelID = null;
 
       // The pre-game music choice travels with the level: send it before the
-      // first play so a run started in silence never makes a sound.
-      if (options.musicEnabled != null) {
-        this._send({ type: "music", enabled: options.musicEnabled !== false });
-      }
+      // first play so a run started in silence never makes a sound. Defaults
+      // to music on when the caller did not ask.
+      this._send({ type: "music", enabled: options.musicEnabled !== false });
 
       // A pre-warmed runtime may already be holding this exact level, paused and
       // muted off-screen: resuming it is what makes "Play preview" instant.

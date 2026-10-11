@@ -6,6 +6,9 @@
    `gmd-play-music`), and ?music=0|1 overrides it for a single visit. Embedded
    runtimes (the gmd2txt workspace) never show this screen — the embedding app
    asks the same question and sends the answer over the bridge.
+
+   This script also owns the animated 8-bit sky: it is the backdrop of the whole
+   game page (pre-game screen and gameplay alike), so it mounts unconditionally.
    ========================================================================== */
 (function () {
   "use strict";
@@ -14,6 +17,11 @@
   const overlay = document.getElementById("pregame");
   const params = new URLSearchParams(location.search);
   const paramChoice = params.get("music"); // "0" | "1" | null
+
+  // The animated 8-bit sky (clear sky, drifting clouds, bobbing sun) is the
+  // game page's backdrop at all times — behind the start screen and the game.
+  const sky = document.getElementById("pregame-sky");
+  if (sky && window.GmdPixelSky) window.GmdPixelSky.mount(sky, { seed: 3, clouds: 6 });
 
   const remembered = (() => {
     try { return localStorage.getItem(STORAGE_KEY); } catch (_) { return null; }
@@ -27,6 +35,10 @@
   function applyChoice(enabled, remember) {
     window.gmdMusicEnabled = enabled !== false;
     storeChoice(window.gmdMusicEnabled, remember);
+    if (!window.gmdMusicEnabled) {
+      // Silence means silence: stop anything that started before the choice.
+      try { window.gmdRuntimeGame?.scene?.getScene("GameScene")?._audio?.stopMusic?.(); } catch (_) {}
+    }
     // The click that made this choice is a user gesture: unlock audio now.
     try { window.gmdRuntimeGame?.sound?.context?.resume?.(); } catch (_) {}
   }
@@ -49,12 +61,17 @@
     return;
   }
 
+  // While the question is open, stay quiet — no menu music or fallback may
+  // start before the player has picked. applyChoice sets the real value.
+  window.gmdMusicEnabled = false;
+
   // The game waits on this promise before a bundled level begins.
   let resolveChoice = null;
   window.gmdplayerAwaitStartChoice = new Promise(resolve => { resolveChoice = resolve; });
 
   if (!overlay) {
     // Markup missing: fall back to playing with music rather than hanging.
+    window.gmdMusicEnabled = true;
     window.gmdplayerAwaitStartChoice = null;
     window.gmdplayerStartChosen = true;
     return;
@@ -77,8 +94,4 @@
 
   withMusic?.addEventListener("click", choose(true));
   withoutMusic?.addEventListener("click", choose(false));
-
-  // Mount the animated 8-bit sky behind the start screen.
-  const sky = document.getElementById("pregame-sky");
-  if (sky && window.GmdPixelSky) window.GmdPixelSky.mount(sky, { seed: 3, clouds: 6 });
 })();

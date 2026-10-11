@@ -149,7 +149,9 @@
         } catch (_) {}
         if (window.gmdMusicEnabled) {
           try {
-            if (scene._audio && !scene._audio.musicPlaying) scene._audio.startMusic();
+            // Only (re)start the soundtrack when a level is actually running —
+            // otherwise the level's own start will bring the music in.
+            if (window.currentlevel?.[0] && scene._audio && !scene._audio.musicPlaying) scene._audio.startMusic();
           } catch (_) {}
         } else {
           try { scene._audio?.stopMusic?.(); } catch (_) {}

@@ -47,7 +47,9 @@ const phaserConfig = {
     smoothStep: true
   },
   backgroundColor: "#000000",
-  parent: document.body,
+  // The canvas lives in #game-frame so the page can float the game window on
+  // the animated pixel sky backdrop (falls back to the page body if missing).
+  parent: document.getElementById("game-frame") || document.body,
   input: {
     windowEvents: false
   },

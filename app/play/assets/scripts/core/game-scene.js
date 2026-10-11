@@ -7383,6 +7383,11 @@ _showwippopup() {
     }
 
     this._applyLevelStartOptions();
+
+    // The run's soundtrack starts with the run (mirrors _restartLevel) — before
+    // this, only dying and respawning ever started the music.
+    this._audio.reset();
+    this._audio.startMusic(this._getCurrentMusicSyncOffset());
   }
   _pushButton(ignoreMacro = false) {
     const objectsUnderPointer = this.input.manager.hitTest(

@@ -56,7 +56,6 @@ const dom = {
   startDialog: document.querySelector("#start-dialog"),
   startTitle: document.querySelector("#start-title"),
   startRemember: document.querySelector("#start-remember"),
-  playSky: document.querySelector("#play-sky"),
   toasts: document.querySelector("#toasts")
 };
 
@@ -819,13 +818,12 @@ function takeWarmRuntime(entry) {
 }
 
 /* ------------------------------------------------------------------ *
- * Pre-game start screen (music or silence) + play-room pixel sky
+ * Pre-game start screen (music or silence)
  * ------------------------------------------------------------------ */
 
 const START_CHOICE_KEY = "gmd-play-music"; // shared with the runtime ("on" / "off")
 let startChoicePending = null;
 let startChoiceResolve = null;
-let playSkyMounted = false;
 
 function rememberedStartChoice() {
   try {
@@ -873,13 +871,6 @@ function requestStartChoice(levelName) {
     openDialog(dialog);
   });
   return startChoicePending;
-}
-
-/** Paints the animated 8-bit sky behind the play room (clouds, sun, horizon). */
-function mountPlaySky() {
-  if (playSkyMounted || !dom.playSky || !window.GmdPixelSky) return;
-  playSkyMounted = true;
-  window.GmdPixelSky.mount(dom.playSky, { clouds: 6, horizon: 0.72 });
 }
 
 function setPlayerMusicState(enabled) {
@@ -1197,7 +1188,6 @@ export const converterApi = {
   playLevel,
   refreshHistory,
   warmUp: () => scheduleWarmRuntime(0),
-  mountPlaySky,
   isPlaying: playerIsOpen,
   toast
 };

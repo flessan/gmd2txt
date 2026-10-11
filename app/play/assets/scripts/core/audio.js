@@ -174,7 +174,10 @@ class AudioManager {
       return false;
     }
   }
-  async _loadMissingOnlineSong(songKey, startPosOffset = 0, fadeDuration = null) {
+  // Kept synchronous on purpose: callers claim the song through the boolean
+  // this returns (`a() || b()`), so returning a Promise here would always be
+  // truthy and would silently skip the official-song loader and the fallback.
+  _loadMissingOnlineSong(songKey, startPosOffset = 0, fadeDuration = null) {
     const match = String(songKey || "").match(/^ng_song_(\d+)$/);
     const songId = match ? match[1] : null;
     const soundMgr = this._scene?.game?.sound;

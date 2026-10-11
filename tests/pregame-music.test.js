@@ -80,6 +80,10 @@ test("music actually plays: unlock, gate and a bundled fallback song", async () 
   assert.match(audio, /_startPixelFallback/, "the audio manager needs the fallback path");
   assert.match(audio, /"pixel_sky"/, "the fallback path plays the preloaded chiptune");
 
+  // The official-song loader must stay reachable: its claim function returns a
+  // synchronous boolean, so `online() || official()` actually falls through.
+  assert.doesNotMatch(audio, /async\s+_loadMissingOnlineSong/, "an async claim is always truthy and starves the song loader");
+
   // "Without music" really is silent, and the flag is honoured at every start.
   assert.match(audio, /gmdMusicEnabled\s*===\s*false/, "music start must respect the disable flag");
   assert.match(audio, /startMusic\s*\(/, "gameplay music keeps its entry point");
@@ -90,6 +94,16 @@ test("music actually plays: unlock, gate and a bundled fallback song", async () 
   assert.match(bridge, /unlockAudio/, "the bridge unlocks audio on interaction");
   assert.match(bridge, /context\?\.resume\?\.|context\.resume\(\)|sound\.context\.resume/, "unlocking resumes the context");
   assert.match(bridge, /type === "music"|type === 'music'/, "the bridge handles the music message");
+
+  // The first run starts its soundtrack by itself — not only after dying.
+  const scene = await read(sceneFile);
+  const applyAt = scene.indexOf("_applyLevelStartOptions();");
+  assert.ok(applyAt >= 0, "the scene applies level start options");
+  assert.match(
+    scene.slice(applyAt, applyAt + 260),
+    /startMusic\(/,
+    "starting a run also starts the music (previously only respawns did)"
+  );
 });
 
 test("the workspace asks before it starts and hands the choice to the runtime", async () => {
@@ -120,29 +134,34 @@ test("the workspace asks before it starts and hands the choice to the runtime", 
   assert.match(adapter, /options\.musicEnabled/, "the load options carry the music choice");
 });
 
-test("the game frame keeps its animated 8-bit pixel sky", async () => {
-  const [sky, page, style, shell, convert, css, workspace] = await Promise.all([
+test("the game page floats its window on the animated 8-bit pixel sky", async () => {
+  const [sky, pregame, page, style, runtimeMain, shell, css] = await Promise.all([
     read(pixelSkyFile),
+    read(pregameFile),
     read(playPageFile),
     read(playStyleFile),
+    read("app/play/assets/scripts/core/main.js"),
     read(appShellFile),
-    read(appConvertFile),
-    read(appCssFile),
-    read("app/workspace.js")
+    read(appCssFile)
   ]);
 
   assert.match(sky, /window\.GmdPixelSky\s*=/, "the sky helper is shared on window");
   assert.match(sky, /mount\s*\(/, "the sky helper exposes mount");
   assert.match(sky, /destroy/, "the sky helper can be torn down again");
-  assert.match(page, /pregame-sky|sky-backdrop/, "the runtime page mounts the sky canvas");
+
+  // The sky is the game page's backdrop at all times, and the game window
+  // floats on it — Phaser fits its canvas into the frame.
+  assert.match(page, /id="pregame-sky"/, "the game page has the sky backdrop canvas");
+  assert.match(page, /id="game-frame"/, "the game page has the floating game window frame");
+  assert.match(pregame, /GmdPixelSky\.mount/, "the sky mounts on load, not only with the start screen");
+  assert.match(runtimeMain, /getElementById\("game-frame"\)/, "Phaser fits its canvas into the frame");
   assert.match(style, /#pregame-sky|\.sky-backdrop/, "the runtime style places the sky behind the game");
+  assert.match(style, /#game-frame/, "the runtime style frames the game window");
   assert.match(style, /\.pixel-btn-primary/, "the start screen keeps its 8-bit button styling");
 
-  // The same sky decorates the workspace play room.
-  assert.match(shell, /id="play-sky"/, "the play room has a sky canvas");
-  assert.match(convert, /GmdPixelSky\.mount/, "the play room mounts the sky");
-  assert.match(workspace, /mountPlaySky/, "the shell paints the sky when the room opens");
-  assert.match(css, /\.play-sky-stage/, "the workspace styles the sky stage");
+  // The sky belongs to the game page — it does not decorate the workspace.
+  assert.doesNotMatch(shell, /play-sky/, "the workspace shell does not paint the game's sky");
+  assert.doesNotMatch(css, /\.play-sky-stage/, "no misplaced play-room sky styles");
 });
 
 test("offline keeps the soundtrack fallback in the shell cache", async () => {

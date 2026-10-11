@@ -76,12 +76,15 @@ window.gmdplayerStandalone = !window.gmdplayerEmbedded;
 window.gmdplayerHoldForLevel = urlParams.get("hold") === "1";
 // Music before (or without) a pre-game choice: ?music=0|1 wins for this visit,
 // then a remembered choice (localStorage `gmd-play-music`), otherwise music on.
+// Embedded runtimes start quiet: the embedding app asks its own start question
+// and sends the answer over the bridge, so a warm-up frame never leaks sound.
 const musicParam = urlParams.get("music");
 const rememberedMusic = (() => {
   try { return localStorage.getItem("gmd-play-music"); } catch (_) { return null; }
 })();
 window.gmdMusicEnabled = musicParam === "0" ? false
   : musicParam === "1" ? true
+  : window.gmdplayerEmbedded ? false
   : rememberedMusic !== "off";
 
 window.currentlevel = [
