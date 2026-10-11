@@ -4,6 +4,6 @@
     name: "GMD Workspace",
     product: "GMD Workspace — local Geometry Dash file tools",
     version: "2.2.2",
-    cacheRevision: "19"
+    cacheRevision: "20"
   });
 })(typeof self !== "undefined" ? self : globalThis);
