@@ -143,7 +143,7 @@ function renderReport(file, decoded) {
 
     <p class="save-note">
       <svg class="icon"><use href="#i-lock"></use></svg>
-      Nothing was written or uploaded. To change a save you would edit it in the game itself — this room only reads.
+      The source .dat is never modified or uploaded. If you choose Import embedded levels, decoded copies are added to this browser’s Library; existing levels are skipped rather than overwritten.
     </p>`;
 }
 
@@ -200,7 +200,7 @@ report.addEventListener("click", async event => {
       const levels = snapshot.normalized?.localLevels || [];
       let added = 0, duplicates = 0;
       for (const item of levels) {
-        const result = await createLevel(item.document);
+        const result = await createLevel(item.document, { duplicateMode: "skip" });
         if (result?.duplicate) duplicates++;
         else added++;
       }
